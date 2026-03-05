@@ -1,10 +1,12 @@
 # Claude Deck
 
+[![CI](https://github.com/ThomasTartrau/claude-deck/actions/workflows/ci.yml/badge.svg)](https://github.com/ThomasTartrau/claude-deck/actions/workflows/ci.yml) [![crates.io](https://img.shields.io/crates/v/claude-deck)](https://crates.io/crates/claude-deck) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+
 A terminal dashboard for managing multiple [Claude Code](https://docs.anthropic.com/en/docs/claude-code) sessions via tmux.
 
 Monitor status, launch sessions, switch workspaces, tag and filter — all from a single TUI.
 
-<!-- ![demo](./assets/demo.gif) -->
+![demo](./assets/demo.gif)
 
 ## Features
 
@@ -20,10 +22,19 @@ Monitor status, launch sessions, switch workspaces, tag and filter — all from 
 ## Install
 
 ```bash
+cargo install claude-deck
+```
+
+Or from source:
+
+```bash
+git clone https://github.com/ThomasTartrau/claude-deck.git
+cd claude-deck
 cargo install --path .
 ```
 
-Requires:
+### Prerequisites
+
 - [tmux](https://github.com/tmux/tmux) (sessions run inside tmux)
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI installed
 
