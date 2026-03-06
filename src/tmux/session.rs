@@ -1,6 +1,7 @@
 use anyhow::Result;
 
 use crate::claude::detector;
+use crate::claude::hooks;
 use crate::model::session::{Session, SessionStatus};
 use crate::tmux::command::{run_tmux, run_tmux_allow_failure};
 use crate::tmux::parser;
@@ -46,7 +47,7 @@ pub fn list_sessions() -> Result<Vec<Session>> {
         let status = if !pane_is_claude {
             SessionStatus::Dead
         } else {
-            detect_pane_status(&info.name)
+            detect_pane_status(&info.name, info.pane_pid)
         };
 
         sessions.push(Session {
@@ -87,53 +88,60 @@ fn is_pane_running_claude(pane_pid: Option<u32>) -> bool {
         .unwrap_or(false)
 }
 
-/// Detect Claude session status from the visible pane content.
+/// Detect Claude session status via hook state files with pane-based fallback.
 ///
-/// - Running: spinner chars (◐◑◒◓ or braille) = tool in progress
-/// - Waiting: ⏺ marker found = Claude finished, needs user input
-/// - Idle: fresh session, no conversation yet
-fn detect_pane_status(session_name: &str) -> SessionStatus {
-    let content = match run_tmux_allow_failure(&["capture-pane", "-t", session_name, "-p"]) {
-        Some(c) => c,
-        None => return SessionStatus::Idle,
-    };
+/// Claude Code hooks write status to /tmp/claude-deck-status/<session_name>.
+/// However, tool interruptions (ctrl+c) don't fire any hook, leaving the file
+/// stuck on "running". As a fallback, when the status file says "running" but
+/// is stale (>10s old), we check the tmux pane for interruption markers.
+fn detect_pane_status(session_name: &str, _pane_pid: Option<u32>) -> SessionStatus {
+    let status = hooks::read_session_status(session_name).unwrap_or(SessionStatus::Idle);
 
-    // Work on raw content to preserve all unicode markers
-    let tail_lines: Vec<&str> = content
-        .lines()
-        .rev()
-        .filter(|l| !l.trim().is_empty())
-        .take(15)
-        .collect();
+    if status != SessionStatus::Running {
+        return status;
+    }
 
-    // Check for active tool indicators in the status bar area.
-    // Active tools show spinner characters in the status bar:
-    //   ◐ ◑ ◒ ◓ (U+25D0-25D3) = rotating circle spinner
-    //   Braille spinners (⠋⠙⠹...) = alternative spinner
-    // Also check the status bar line for multiple spinners like "◐ Tool | ◐ Tool"
-    const CIRCLE_SPINNERS: [char; 4] = ['\u{25D0}', '\u{25D1}', '\u{25D2}', '\u{25D3}'];
-    const BRAILLE_SPINNERS: [char; 10] = [
-        '\u{280B}', '\u{2809}', '\u{2839}', '\u{2838}', '\u{283C}', '\u{2834}', '\u{2826}',
-        '\u{2827}', '\u{2807}', '\u{280F}',
-    ];
+    // Check if the status file is stale — if recently updated, trust it
+    let status_path = std::path::PathBuf::from("/tmp/claude-deck-status").join(session_name);
+    let is_stale = std::fs::metadata(&status_path)
+        .ok()
+        .and_then(|m| m.modified().ok())
+        .map(|t| t.elapsed().unwrap_or_default().as_secs() > 10)
+        .unwrap_or(false);
 
-    let is_running = tail_lines.iter().any(|line| {
-        let t = line.trim();
-        CIRCLE_SPINNERS.iter().any(|&c| t.contains(c))
-            || BRAILLE_SPINNERS.iter().any(|&c| t.starts_with(c))
-    });
-
-    if is_running {
+    if !is_stale {
         return SessionStatus::Running;
     }
 
-    // Check if Claude has spoken (⏺ U+23FA is Claude's response marker)
-    // If present, Claude finished a turn and is waiting for user input
-    if content.contains('\u{23FA}') {
-        return SessionStatus::Waiting;
+    // Stale "running" — check pane content for interruption/idle markers
+    if pane_looks_idle(session_name) {
+        // Update the status file so we don't re-check every tick
+        let _ = std::fs::write(&status_path, "idle");
+        SessionStatus::Idle
+    } else {
+        SessionStatus::Running
     }
+}
 
-    SessionStatus::Idle
+/// Check the last lines of a tmux pane for signs that Claude is idle/interrupted.
+fn pane_looks_idle(session_name: &str) -> bool {
+    let output =
+        match run_tmux_allow_failure(&["capture-pane", "-t", session_name, "-p", "-J", "-S", "-5"])
+        {
+            Some(o) => o,
+            None => return false,
+        };
+
+    let text = output.to_lowercase();
+    // "interrupted" appears when user ctrl+c's a running tool
+    // "what should claude do" is the follow-up prompt after interruption
+    // ">" (❯) at the start of a line is the input prompt
+    text.contains("interrupted")
+        || text.contains("what should claude do")
+        || output.lines().rev().any(|line| {
+            let trimmed = line.trim();
+            trimmed.starts_with('❯') || trimmed.starts_with('>')
+        })
 }
 
 struct GitInfo {

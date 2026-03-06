@@ -754,6 +754,7 @@ impl App {
                     let name = session.name.clone();
                     match tmux_session::kill_session(&name) {
                         Ok(()) => {
+                            crate::claude::hooks::clear_session_status(&name);
                             self.add_log(&format!("Killed '{}'", name));
                             self.mode = Mode::Normal;
                             self.refresh();

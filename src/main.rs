@@ -31,6 +31,8 @@ use crate::event::{poll_event, AppEvent};
 const TICK_RATE: Duration = Duration::from_millis(250);
 
 fn main() -> Result<()> {
+    claude::hooks::ensure_hooks_installed();
+
     let cli = Cli::parse();
 
     match cli.command {
@@ -103,6 +105,7 @@ fn cmd_launch(name: &str, prompt: Option<&str>, path: Option<&str>) -> Result<()
 
 fn cmd_kill(name: &str) -> Result<()> {
     tmux::session::kill_session(name)?;
+    claude::hooks::clear_session_status(name);
     println!("{}", serde_json::json!({ "killed": name }));
 
     // Remove from persisted sessions
