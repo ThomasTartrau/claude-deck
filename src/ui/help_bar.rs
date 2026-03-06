@@ -21,6 +21,7 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect) {
             ("p", "send"),
             ("y", "copy"),
             ("h/l", "resize"),
+            ("a", "actions"),
             ("g", "logs"),
             ("/", "filter"),
             ("q", "quit"),
@@ -42,6 +43,18 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect) {
             ("Esc", "cancel"),
         ],
         Mode::WorkspaceAdd => &[("Type", "path"), ("Enter", "add"), ("Esc", "back")],
+        Mode::QuickActionList => &[
+            ("j/k", "nav"),
+            ("Enter", "send"),
+            ("n", "new"),
+            ("e", "edit"),
+            ("d", "delete"),
+            ("Esc", "close"),
+        ],
+        Mode::QuickActionAdd | Mode::QuickActionEdit => {
+            &[("Tab", "next field"), ("Enter", "save"), ("Esc", "cancel")]
+        }
+        Mode::QuickActionConfirmDelete => &[("y", "confirm"), ("n/Esc", "cancel")],
     };
 
     let key_style = Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD);

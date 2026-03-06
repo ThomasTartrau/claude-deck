@@ -5,6 +5,7 @@ mod launch_dialog;
 mod logs_panel;
 mod picker_dialog;
 mod preview_panel;
+mod quick_action_dialog;
 mod rename_dialog;
 mod send_dialog;
 mod sessions_table;
@@ -164,6 +165,11 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         Mode::TagPicker => picker_dialog::render(frame, app),
         Mode::WorkspacePicker => workspace_dialog::render_picker(frame, app),
         Mode::WorkspaceAdd => workspace_dialog::render_add(frame, app),
+        Mode::QuickActionList => quick_action_dialog::render_list(frame, app),
+        Mode::QuickActionAdd | Mode::QuickActionEdit => {
+            quick_action_dialog::render_edit(frame, app)
+        }
+        Mode::QuickActionConfirmDelete => quick_action_dialog::render_confirm_delete(frame, app),
         Mode::Filter | Mode::Normal => {}
     }
 

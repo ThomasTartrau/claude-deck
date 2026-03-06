@@ -33,6 +33,10 @@ pub enum Mode {
     TagPicker,
     WorkspacePicker,
     WorkspaceAdd,
+    QuickActionList,
+    QuickActionAdd,
+    QuickActionEdit,
+    QuickActionConfirmDelete,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -175,6 +179,12 @@ pub struct App {
     pub session_durations: HashMap<String, SessionDurations>,
     cost_refresh_counter: u32,
     cost_file_mtimes: HashMap<String, std::time::SystemTime>,
+    pub qa_cursor: usize,
+    pub qa_key_input: String,
+    pub qa_label_input: String,
+    pub qa_prompt_input: String,
+    pub qa_edit_index: Option<usize>,
+    pub qa_field_focus: u8, // 0=key, 1=label, 2=prompt
 }
 
 impl App {
@@ -226,6 +236,12 @@ impl App {
             session_durations: HashMap::new(),
             cost_refresh_counter: 4,
             cost_file_mtimes: HashMap::new(),
+            qa_cursor: 0,
+            qa_key_input: String::new(),
+            qa_label_input: String::new(),
+            qa_prompt_input: String::new(),
+            qa_edit_index: None,
+            qa_field_focus: 0,
         })
     }
 
@@ -551,6 +567,9 @@ impl App {
             Mode::TagPicker => self.handle_tag_picker_key(key),
             Mode::WorkspacePicker => self.handle_workspace_picker_key(key),
             Mode::WorkspaceAdd => self.handle_workspace_add_key(key),
+            Mode::QuickActionList => self.handle_qa_list_key(key),
+            Mode::QuickActionAdd | Mode::QuickActionEdit => self.handle_qa_edit_key(key),
+            Mode::QuickActionConfirmDelete => self.handle_qa_delete_key(key),
         }
     }
 
@@ -663,6 +682,10 @@ impl App {
             KeyCode::Char('w') => {
                 self.rebuild_workspace_picker();
                 self.mode = Mode::WorkspacePicker;
+            }
+            KeyCode::Char('a') => {
+                self.qa_cursor = 0;
+                self.mode = Mode::QuickActionList;
             }
             _ => {}
         }
@@ -1027,6 +1050,170 @@ impl App {
                 self.workspace_input.pop();
             }
             _ => {}
+        }
+    }
+
+    fn handle_qa_list_key(&mut self, key: KeyEvent) {
+        let action_count = self.config.quick_actions.len();
+        match key.code {
+            KeyCode::Esc => self.mode = Mode::Normal,
+            KeyCode::Up | KeyCode::Char('k') => {
+                if self.qa_cursor > 0 {
+                    self.qa_cursor -= 1;
+                }
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                if action_count > 0 && self.qa_cursor < action_count - 1 {
+                    self.qa_cursor += 1;
+                }
+            }
+            KeyCode::Enter => {
+                // Trigger: send prompt to selected session
+                if let Some(action) = self.config.quick_actions.get(self.qa_cursor).cloned() {
+                    if let Some(session) = self.selected_session() {
+                        let name = session.name.clone();
+                        match session.status {
+                            SessionStatus::Running | SessionStatus::Waiting => {
+                                match send_keys(&name, &action.prompt) {
+                                    Ok(()) => {
+                                        self.add_log(&format!(
+                                            "Quick action '{}' sent to '{}'",
+                                            action.label, name
+                                        ));
+                                        self.flash_message = Some((
+                                            format!("Sent: {}", action.label),
+                                            Instant::now(),
+                                        ));
+                                    }
+                                    Err(e) => {
+                                        self.error_message = Some(format!("Send failed: {}", e));
+                                    }
+                                }
+                            }
+                            _ => {
+                                self.flash_message = Some((
+                                    "Session not Running/Waiting".to_string(),
+                                    Instant::now(),
+                                ));
+                            }
+                        }
+                    }
+                    self.mode = Mode::Normal;
+                }
+            }
+            KeyCode::Char('n') => {
+                // New action
+                self.qa_key_input.clear();
+                self.qa_label_input.clear();
+                self.qa_prompt_input.clear();
+                self.qa_edit_index = None;
+                self.qa_field_focus = 0;
+                self.mode = Mode::QuickActionAdd;
+            }
+            KeyCode::Char('e') => {
+                // Edit action under cursor
+                if let Some(action) = self.config.quick_actions.get(self.qa_cursor) {
+                    self.qa_key_input = action.key.clone();
+                    self.qa_label_input = action.label.clone();
+                    self.qa_prompt_input = action.prompt.clone();
+                    self.qa_edit_index = Some(self.qa_cursor);
+                    self.qa_field_focus = 0;
+                    self.mode = Mode::QuickActionEdit;
+                }
+            }
+            KeyCode::Char('d') => {
+                // Delete action under cursor
+                if self.qa_cursor < action_count {
+                    self.mode = Mode::QuickActionConfirmDelete;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_qa_edit_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Esc => {
+                self.qa_cursor = 0;
+                self.mode = Mode::QuickActionList;
+            }
+            KeyCode::Tab => {
+                self.qa_field_focus = (self.qa_field_focus + 1) % 3;
+            }
+            KeyCode::BackTab => {
+                self.qa_field_focus = if self.qa_field_focus == 0 {
+                    2
+                } else {
+                    self.qa_field_focus - 1
+                };
+            }
+            KeyCode::Enter => {
+                let key = self.qa_key_input.trim().to_string();
+                let label = self.qa_label_input.trim().to_string();
+                let prompt = self.qa_prompt_input.trim().to_string();
+
+                if key.is_empty() || label.is_empty() || prompt.is_empty() {
+                    self.error_message = Some("All fields are required".to_string());
+                    return;
+                }
+
+                let action = config::QuickAction {
+                    key,
+                    label: label.clone(),
+                    prompt,
+                };
+
+                if let Some(idx) = self.qa_edit_index {
+                    self.config.quick_actions[idx] = action;
+                    self.add_log(&format!("Updated quick action '{}'", label));
+                    self.flash_message = Some((format!("Updated: {}", label), Instant::now()));
+                } else {
+                    self.config.quick_actions.push(action);
+                    self.add_log(&format!("Added quick action '{}'", label));
+                    self.flash_message = Some((format!("Added: {}", label), Instant::now()));
+                }
+                self.config.save();
+                self.qa_cursor = 0;
+                self.mode = Mode::QuickActionList;
+            }
+            KeyCode::Char(c) => match self.qa_field_focus {
+                0 => self.qa_key_input.push(c),
+                1 => self.qa_label_input.push(c),
+                _ => self.qa_prompt_input.push(c),
+            },
+            KeyCode::Backspace => match self.qa_field_focus {
+                0 => {
+                    self.qa_key_input.pop();
+                }
+                1 => {
+                    self.qa_label_input.pop();
+                }
+                _ => {
+                    self.qa_prompt_input.pop();
+                }
+            },
+            _ => {}
+        }
+    }
+
+    fn handle_qa_delete_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Char('y') | KeyCode::Char('Y') => {
+                if self.qa_cursor < self.config.quick_actions.len() {
+                    let removed = self.config.quick_actions.remove(self.qa_cursor);
+                    self.config.save();
+                    self.add_log(&format!("Deleted quick action '{}'", removed.label));
+                    self.flash_message =
+                        Some((format!("Deleted: {}", removed.label), Instant::now()));
+                    if self.qa_cursor > 0 && self.qa_cursor >= self.config.quick_actions.len() {
+                        self.qa_cursor -= 1;
+                    }
+                }
+                self.mode = Mode::QuickActionList;
+            }
+            _ => {
+                self.mode = Mode::QuickActionList;
+            }
         }
     }
 

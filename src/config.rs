@@ -27,7 +27,16 @@ pub struct Config {
     #[serde(default = "default_true")]
     pub notifications: bool,
     #[serde(default)]
+    pub quick_actions: Vec<QuickAction>,
+    #[serde(default)]
     pub tags: HashMap<String, Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QuickAction {
+    pub key: String,
+    pub label: String,
+    pub prompt: String,
 }
 
 fn default_true() -> bool {
@@ -43,6 +52,7 @@ impl Default for Config {
             show_logs: false,
             notifications: true,
             workspaces: Vec::new(),
+            quick_actions: Vec::new(),
             tags: HashMap::new(),
         }
     }
