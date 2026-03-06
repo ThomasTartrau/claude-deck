@@ -20,9 +20,11 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect) {
     };
 
     let block = Block::bordered().title(" Preview ");
-    let paragraph = Paragraph::new(lines)
-        .block(block)
-        .scroll((app.preview_scroll, 0));
+    let inner_height = area.height.saturating_sub(2);
+    let total_lines = lines.len() as u16;
+    let max_scroll = total_lines.saturating_sub(inner_height);
+    let scroll = app.preview_scroll.min(max_scroll);
+    let paragraph = Paragraph::new(lines).block(block).scroll((scroll, 0));
     frame.render_widget(paragraph, area);
 }
 

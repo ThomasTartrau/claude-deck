@@ -156,6 +156,7 @@ pub struct App {
     pub tick: u64,
     pub pane_preview: Vec<String>,
     pub preview_scroll: u16,
+    preview_session_name: Option<String>,
     pub sort_by: SortBy,
     pub prompt_text: String,
     pub rename_text: String,
@@ -202,6 +203,7 @@ impl App {
             tick: 0,
             pane_preview: Vec::new(),
             preview_scroll: 0,
+            preview_session_name: None,
             sort_by,
             prompt_text: String::new(),
             rename_text: String::new(),
@@ -410,10 +412,15 @@ impl App {
     }
 
     pub fn update_preview(&mut self) {
+        let current_name = self.selected_session().map(|s| s.name.clone());
         self.pane_preview = match self.selected_session() {
             Some(session) => capture_pane_lines(&session.name, 200),
             None => Vec::new(),
         };
+        if current_name != self.preview_session_name {
+            self.preview_session_name = current_name;
+            self.preview_scroll = u16::MAX;
+        }
     }
 
     pub fn scroll_preview(&mut self, delta: i16) {
@@ -421,7 +428,7 @@ impl App {
         if delta < 0 {
             self.preview_scroll = self.preview_scroll.saturating_sub((-delta) as u16);
         } else {
-            self.preview_scroll = (self.preview_scroll + delta as u16).min(max);
+            self.preview_scroll = self.preview_scroll.saturating_add(delta as u16).min(max);
         }
     }
 
