@@ -21,6 +21,7 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect) {
             ("p", "send"),
             ("y", "copy"),
             ("h/l", "resize"),
+            ("D", "diff"),
             ("a", "actions"),
             ("g", "logs"),
             ("/", "filter"),

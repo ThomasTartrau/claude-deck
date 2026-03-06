@@ -185,6 +185,8 @@ pub struct App {
     pub qa_prompt_input: String,
     pub qa_edit_index: Option<usize>,
     pub qa_field_focus: u8, // 0=key, 1=label, 2=prompt
+    pub show_diff: bool,
+    pub diff_lines: Vec<String>,
 }
 
 impl App {
@@ -242,6 +244,8 @@ impl App {
             qa_prompt_input: String::new(),
             qa_edit_index: None,
             qa_field_focus: 0,
+            show_diff: false,
+            diff_lines: Vec::new(),
         })
     }
 
@@ -488,10 +492,23 @@ impl App {
             Some(session) => capture_pane_lines(&session.name, 200),
             None => Vec::new(),
         };
+        if self.show_diff {
+            self.update_diff();
+        }
         if current_name != self.preview_session_name {
             self.preview_session_name = current_name;
             self.preview_scroll = u16::MAX;
         }
+    }
+
+    fn update_diff(&mut self) {
+        self.diff_lines = match self.selected_session() {
+            Some(session) => match &session.pane_path {
+                Some(path) => fetch_git_diff(path),
+                None => vec!["No working directory".to_string()],
+            },
+            None => Vec::new(),
+        };
     }
 
     pub fn scroll_preview(&mut self, delta: i16) {
@@ -682,6 +699,15 @@ impl App {
             KeyCode::Char('w') => {
                 self.rebuild_workspace_picker();
                 self.mode = Mode::WorkspacePicker;
+            }
+            KeyCode::Char('D') => {
+                if self.selected_session().is_some() {
+                    self.show_diff = !self.show_diff;
+                    if self.show_diff {
+                        self.update_diff();
+                        self.preview_scroll = 0;
+                    }
+                }
             }
             KeyCode::Char('a') => {
                 self.qa_cursor = 0;
@@ -1377,6 +1403,49 @@ fn capture_pane_lines(session_name: &str, max_lines: usize) -> Vec<String> {
             non_empty
         })
         .unwrap_or_default()
+}
+
+fn fetch_git_diff(path: &str) -> Vec<String> {
+    let output = std::process::Command::new("git")
+        .args(["-C", path, "diff", "--stat"])
+        .output()
+        .ok();
+
+    let stat_lines: Vec<String> = output
+        .filter(|o| o.status.success())
+        .map(|o| {
+            String::from_utf8_lossy(&o.stdout)
+                .lines()
+                .map(|l| l.to_string())
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let output = std::process::Command::new("git")
+        .args(["-C", path, "diff"])
+        .output()
+        .ok();
+
+    let diff_lines: Vec<String> = output
+        .filter(|o| o.status.success())
+        .map(|o| {
+            String::from_utf8_lossy(&o.stdout)
+                .lines()
+                .map(|l| l.to_string())
+                .collect()
+        })
+        .unwrap_or_default();
+
+    if stat_lines.is_empty() && diff_lines.is_empty() {
+        return vec!["Working tree clean".to_string()];
+    }
+
+    let mut lines = stat_lines;
+    if !lines.is_empty() && !diff_lines.is_empty() {
+        lines.push(String::new());
+    }
+    lines.extend(diff_lines);
+    lines
 }
 
 #[cfg(test)]

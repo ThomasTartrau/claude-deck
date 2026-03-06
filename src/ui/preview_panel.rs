@@ -7,6 +7,14 @@ use ratatui::Frame;
 use crate::app::App;
 
 pub fn render(frame: &mut Frame, app: &App, area: Rect) {
+    if app.show_diff {
+        render_diff(frame, app, area);
+    } else {
+        render_preview(frame, app, area);
+    }
+}
+
+fn render_preview(frame: &mut Frame, app: &App, area: Rect) {
     let lines: Vec<Line> = if app.pane_preview.is_empty() {
         vec![Line::styled(
             "No preview available",
@@ -26,6 +34,50 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect) {
     let scroll = app.preview_scroll.min(max_scroll);
     let paragraph = Paragraph::new(lines).block(block).scroll((scroll, 0));
     frame.render_widget(paragraph, area);
+}
+
+fn render_diff(frame: &mut Frame, app: &App, area: Rect) {
+    let lines: Vec<Line> = if app.diff_lines.is_empty() {
+        vec![Line::styled(
+            "No diff available",
+            Style::new().fg(Color::DarkGray),
+        )]
+    } else {
+        app.diff_lines.iter().map(|l| style_diff_line(l)).collect()
+    };
+
+    let block = Block::bordered()
+        .title(" Diff ")
+        .style(Style::new().fg(Color::Yellow));
+    let inner_height = area.height.saturating_sub(2);
+    let total_lines = lines.len() as u16;
+    let max_scroll = total_lines.saturating_sub(inner_height);
+    let scroll = app.preview_scroll.min(max_scroll);
+    let paragraph = Paragraph::new(lines).block(block).scroll((scroll, 0));
+    frame.render_widget(paragraph, area);
+}
+
+fn style_diff_line(line: &str) -> Line<'static> {
+    let owned = line.to_string();
+    if owned.starts_with("+++") || owned.starts_with("---") {
+        Line::styled(
+            owned,
+            Style::new().fg(Color::White).add_modifier(Modifier::BOLD),
+        )
+    } else if owned.starts_with("@@") {
+        Line::styled(owned, Style::new().fg(Color::Cyan))
+    } else if owned.starts_with("diff ") {
+        Line::styled(
+            owned,
+            Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+        )
+    } else if owned.starts_with('+') {
+        Line::styled(owned, Style::new().fg(Color::Green))
+    } else if owned.starts_with('-') {
+        Line::styled(owned, Style::new().fg(Color::Red))
+    } else {
+        Line::styled(owned, Style::default())
+    }
 }
 
 fn parse_ansi_line(s: &str) -> Line<'static> {
