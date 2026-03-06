@@ -66,6 +66,8 @@ pub enum Command {
     },
     /// List all known tags (outputs JSON)
     Tags,
+    /// Show session statistics (outputs JSON)
+    Stats,
 }
 
 #[cfg(test)]
@@ -218,6 +220,12 @@ mod tests {
     fn tags_subcommand() {
         let cli = parse(&["claude-deck", "tags"]).unwrap();
         assert!(matches!(cli.command, Some(Command::Tags)));
+    }
+
+    #[test]
+    fn stats_subcommand() {
+        let cli = parse(&["claude-deck", "stats"]).unwrap();
+        assert!(matches!(cli.command, Some(Command::Stats)));
     }
 
     #[test]

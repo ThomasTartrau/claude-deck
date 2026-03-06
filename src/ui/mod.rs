@@ -135,7 +135,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
 
     // Right panel: details on top, preview below
     let [detail_area, preview_area] =
-        Layout::vertical([Constraint::Length(10), Constraint::Fill(1)]).areas(right);
+        Layout::vertical([Constraint::Length(15), Constraint::Fill(1)]).areas(right);
 
     detail_panel::render(frame, app, detail_area);
     preview_panel::render(frame, app, preview_area);

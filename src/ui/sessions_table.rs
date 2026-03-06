@@ -14,6 +14,8 @@ pub fn render(frame: &mut Frame, app: &mut App, area: Rect) {
     let has_tags = !app.config.tags.is_empty();
     let has_workspaces = !app.config.workspaces.is_empty();
 
+    let has_costs = !app.session_costs.is_empty();
+
     let mut header_cells: Vec<&str> =
         vec![sort_label("NAME", SortBy::Name, sort_by), "BRANCH", "GIT"];
     if has_workspaces {
@@ -21,6 +23,9 @@ pub fn render(frame: &mut Frame, app: &mut App, area: Rect) {
     }
     if has_tags {
         header_cells.push("TAGS");
+    }
+    if has_costs {
+        header_cells.push("COST");
     }
     header_cells.push(sort_label("AGE", SortBy::Age, sort_by));
     header_cells.push(sort_label("ST", SortBy::Status, sort_by));
@@ -60,6 +65,14 @@ pub fn render(frame: &mut Frame, app: &mut App, area: Rect) {
                 };
                 cells.push(Cell::from(tags_str).style(Style::new().fg(Color::Magenta)));
             }
+            if has_costs {
+                let cost_str = app
+                    .session_costs
+                    .get(&s.name)
+                    .map(|c| c.cost_display())
+                    .unwrap_or_default();
+                cells.push(Cell::from(cost_str).style(Style::new().fg(Color::Cyan)));
+            }
             cells.push(Cell::from(s.age_display()));
             cells.push(Cell::from(symbol).style(style));
 
@@ -77,6 +90,9 @@ pub fn render(frame: &mut Frame, app: &mut App, area: Rect) {
     }
     if has_tags {
         widths.push(Constraint::Length(12));
+    }
+    if has_costs {
+        widths.push(Constraint::Length(8));
     }
     widths.push(Constraint::Length(5));
     widths.push(Constraint::Length(3));

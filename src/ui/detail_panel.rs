@@ -29,6 +29,20 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect) {
 
             let path = session.pane_path.as_deref().unwrap_or("-");
 
+            // Duration tracking
+            let (running_dur, waiting_dur) = app
+                .session_durations
+                .get(&session.name)
+                .map(|d| (d.format_running(), d.format_waiting()))
+                .unwrap_or_else(|| ("0s".to_string(), "0s".to_string()));
+
+            // Cost tracking
+            let (cost_display, tokens_display) = app
+                .session_costs
+                .get(&session.name)
+                .map(|c| (c.cost_display(), c.tokens_display()))
+                .unwrap_or_else(|| ("-".to_string(), "-".to_string()));
+
             let mut lines = vec![
                 Line::from(vec![
                     Span::styled("Session  ", label_style),
@@ -64,6 +78,29 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect) {
                 Line::from(vec![
                     Span::styled("Created  ", label_style),
                     Span::styled(format!("{} ago", session.age_display()), value_style),
+                ]),
+                Line::from(vec![
+                    Span::styled("Running  ", label_style),
+                    Span::styled(
+                        truncate(&running_dur, max_val),
+                        Style::new().fg(Color::Green),
+                    ),
+                    Span::styled("  Waiting ", label_style),
+                    Span::styled(waiting_dur, Style::new().fg(Color::Yellow)),
+                ]),
+                Line::from(vec![
+                    Span::styled("Cost     ", label_style),
+                    Span::styled(
+                        truncate(&cost_display, max_val),
+                        Style::new().fg(Color::Cyan),
+                    ),
+                ]),
+                Line::from(vec![
+                    Span::styled("Tokens   ", label_style),
+                    Span::styled(
+                        truncate(&tokens_display, max_val),
+                        Style::new().fg(Color::Cyan),
+                    ),
                 ]),
             ];
 

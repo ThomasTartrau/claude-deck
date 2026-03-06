@@ -24,8 +24,14 @@ pub struct Config {
     pub default_sort: String,
     pub show_logs: bool,
     pub workspaces: Vec<Workspace>,
+    #[serde(default = "default_true")]
+    pub notifications: bool,
     #[serde(default)]
     pub tags: HashMap<String, Vec<String>>,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl Default for Config {
@@ -35,6 +41,7 @@ impl Default for Config {
             panel_ratio: 45,
             default_sort: "age".into(),
             show_logs: false,
+            notifications: true,
             workspaces: Vec::new(),
             tags: HashMap::new(),
         }
@@ -149,6 +156,7 @@ mod tests {
         assert_eq!(config.panel_ratio, 45);
         assert_eq!(config.default_sort, "age");
         assert!(!config.show_logs);
+        assert!(config.notifications);
         assert!(config.workspaces.is_empty());
         assert!(config.tags.is_empty());
     }
@@ -189,6 +197,14 @@ mod tests {
         assert_eq!(config.refresh_interval_secs, 10);
         assert_eq!(config.panel_ratio, 45); // default
         assert_eq!(config.default_sort, "age"); // default
+        assert!(config.notifications); // default true
+    }
+
+    #[test]
+    fn config_notifications_disabled() {
+        let toml_str = r#"notifications = false"#;
+        let config: Config = toml::from_str(toml_str).unwrap();
+        assert!(!config.notifications);
     }
 
     #[test]

@@ -8,6 +8,8 @@ use ratatui::widgets::TableState;
 
 use crate::claude::launcher;
 use crate::config::{self, Config, SavedSession};
+use crate::cost::{self, CostInfo};
+use crate::duration::SessionDurations;
 use crate::model::session::{Session, SessionStatus};
 use crate::tmux::command::{rename_session, run_tmux_allow_failure, send_keys};
 use crate::tmux::session as tmux_session;
@@ -169,6 +171,10 @@ pub struct App {
     pub panel_ratio: u16,
     prev_statuses: HashMap<String, SessionStatus>,
     prev_session_names: Vec<String>,
+    pub session_costs: HashMap<String, CostInfo>,
+    pub session_durations: HashMap<String, SessionDurations>,
+    cost_refresh_counter: u32,
+    cost_file_mtimes: HashMap<String, std::time::SystemTime>,
 }
 
 impl App {
@@ -216,6 +222,10 @@ impl App {
             panel_ratio,
             prev_statuses: HashMap::new(),
             prev_session_names: Vec::new(),
+            session_costs: HashMap::new(),
+            session_durations: HashMap::new(),
+            cost_refresh_counter: 4,
+            cost_file_mtimes: HashMap::new(),
         })
     }
 
@@ -289,9 +299,16 @@ impl App {
             })
             .collect();
 
-        for msg in notifications {
-            self.add_log(&msg);
-            self.flash_message = Some((msg, Instant::now()));
+        for msg in &notifications {
+            self.add_log(msg);
+            self.flash_message = Some((msg.clone(), Instant::now()));
+        }
+
+        // Send macOS notifications for Running -> Waiting transitions
+        if self.config.notifications {
+            for msg in &notifications {
+                send_notification("Claude Deck", msg);
+            }
         }
 
         self.prev_statuses = self
@@ -299,6 +316,44 @@ impl App {
             .iter()
             .map(|s| (s.name.clone(), s.status.clone()))
             .collect();
+
+        // Update duration tracking for each session
+        let session_names: Vec<(String, SessionStatus)> = self
+            .all_sessions
+            .iter()
+            .map(|s| (s.name.clone(), s.status.clone()))
+            .collect();
+        for (name, status) in &session_names {
+            self.session_durations
+                .entry(name.clone())
+                .or_insert_with(SessionDurations::new)
+                .update(status);
+        }
+        // Prune durations for sessions that no longer exist
+        let live_names: std::collections::HashSet<&String> =
+            session_names.iter().map(|(n, _)| n).collect();
+        self.session_durations.retain(|k, _| live_names.contains(k));
+
+        // Parse cost info from Claude session JSONL files (every 5th refresh)
+        self.cost_refresh_counter += 1;
+        if self.cost_refresh_counter >= 5 {
+            self.cost_refresh_counter = 0;
+            for s in &self.all_sessions {
+                if let Some(ref pane_path) = s.pane_path {
+                    if let Some((mtime, file_path)) = cost::session_file_mtime(pane_path) {
+                        let cached_mtime = self.cost_file_mtimes.get(&s.name);
+                        if cached_mtime.is_some_and(|t| *t == mtime) {
+                            continue;
+                        }
+                        let info = cost::parse_cost_from_file(&file_path);
+                        if info.total_tokens() > 0 {
+                            self.session_costs.insert(s.name.clone(), info);
+                        }
+                        self.cost_file_mtimes.insert(s.name.clone(), mtime);
+                    }
+                }
+            }
+        }
 
         // Persist active sessions for restore after reboot (only when list changes)
         let current_names: Vec<String> = self
@@ -1103,6 +1158,20 @@ fn clipboard_copy(text: &str) -> std::io::Result<std::process::ExitStatus> {
         std::io::ErrorKind::NotFound,
         "no clipboard command found",
     ))
+}
+
+fn send_notification(title: &str, message: &str) {
+    let script = format!(
+        "display notification \"{}\" with title \"{}\" sound name \"Glass\"",
+        message.replace('\\', "\\\\").replace('"', "\\\""),
+        title.replace('\\', "\\\\").replace('"', "\\\""),
+    );
+    let _ = std::process::Command::new("osascript")
+        .args(["-e", &script])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn();
 }
 
 fn capture_pane_lines(session_name: &str, max_lines: usize) -> Vec<String> {

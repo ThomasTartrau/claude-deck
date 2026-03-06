@@ -2,6 +2,8 @@ mod app;
 mod claude;
 mod cli;
 mod config;
+mod cost;
+mod duration;
 mod event;
 mod model;
 mod tmux;
@@ -50,6 +52,7 @@ fn run_command(cmd: Command) -> Result<()> {
         Command::Send { name, text } => cmd_send(&name, &text),
         Command::Tag { name, tags } => cmd_tag(&name, &tags),
         Command::Tags => cmd_tags(),
+        Command::Stats => cmd_stats(),
     }
 }
 
@@ -181,6 +184,80 @@ fn cmd_tag(name: &str, tags: &str) -> Result<()> {
 fn cmd_tags() -> Result<()> {
     let config = Config::load();
     println!("{}", serde_json::json!(config.all_tags()));
+    Ok(())
+}
+
+fn cmd_stats() -> Result<()> {
+    let config = Config::load();
+    let sessions = tmux::session::list_sessions()?;
+
+    let mut by_status = serde_json::Map::new();
+    let mut running_count = 0u64;
+    let mut waiting_count = 0u64;
+    let mut idle_count = 0u64;
+    let mut dead_count = 0u64;
+
+    let mut total_cost = 0.0f64;
+    let mut has_any_cost = false;
+
+    let mut session_details: Vec<serde_json::Value> = Vec::new();
+
+    for s in &sessions {
+        match s.status {
+            model::session::SessionStatus::Running => running_count += 1,
+            model::session::SessionStatus::Waiting => waiting_count += 1,
+            model::session::SessionStatus::Idle => idle_count += 1,
+            model::session::SessionStatus::Dead => dead_count += 1,
+        }
+
+        let uptime_secs = chrono::Local::now()
+            .signed_duration_since(s.created_at)
+            .num_seconds()
+            .max(0) as u64;
+
+        // Parse cost from Claude session JSONL files
+        let cost_info = s
+            .pane_path
+            .as_deref()
+            .map(cost::parse_cost_from_session)
+            .unwrap_or_default();
+
+        if let Some(c) = cost_info.total_cost {
+            total_cost += c;
+            has_any_cost = true;
+        }
+
+        let total_tokens = cost_info.total_tokens();
+
+        session_details.push(serde_json::json!({
+            "name": s.name,
+            "status": s.status.label(),
+            "branch": s.branch,
+            "uptime_secs": uptime_secs,
+            "uptime": duration::format_duration(std::time::Duration::from_secs(uptime_secs)),
+            "cost": cost_info.total_cost,
+            "input_tokens": cost_info.input_tokens,
+            "output_tokens": cost_info.output_tokens,
+            "cache_creation_tokens": cost_info.cache_creation_tokens,
+            "cache_read_tokens": cost_info.cache_read_tokens,
+            "total_tokens": total_tokens,
+            "tags": config.tags_for(&s.name),
+        }));
+    }
+
+    by_status.insert("Running".into(), running_count.into());
+    by_status.insert("Waiting".into(), waiting_count.into());
+    by_status.insert("Idle".into(), idle_count.into());
+    by_status.insert("Dead".into(), dead_count.into());
+
+    let output = serde_json::json!({
+        "total_sessions": sessions.len(),
+        "by_status": by_status,
+        "total_cost": if has_any_cost { Some(total_cost) } else { None::<f64> },
+        "sessions": session_details,
+    });
+
+    println!("{}", serde_json::to_string_pretty(&output)?);
     Ok(())
 }
 
