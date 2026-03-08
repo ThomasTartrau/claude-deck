@@ -1,3 +1,5 @@
+import { useState, useEffect } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { Session } from "@/types/session";
@@ -30,6 +32,13 @@ export function Header({
 	onNewSession,
 	onOpenWorkspaces,
 }: HeaderProps) {
+	const [version, setVersion] = useState("");
+	useEffect(() => {
+		getVersion()
+			.then((v) => setVersion(v))
+			.catch(() => {});
+	}, []);
+
 	const running = sessions.filter((s) => s.status === "Running").length;
 	const waiting = sessions.filter((s) => s.status === "Waiting").length;
 	const idle = sessions.filter((s) => s.status === "Idle").length;
@@ -41,6 +50,11 @@ export function Header({
 				<h1 className="text-sm font-semibold tracking-tight text-foreground">
 					Claude Deck
 				</h1>
+				{version && (
+					<span className="text-[10px] text-muted-foreground font-mono">
+						v{version}
+					</span>
+				)}
 				<div className="flex items-center gap-1.5">
 					<StatusCount
 						count={running}
