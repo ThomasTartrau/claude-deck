@@ -13,12 +13,7 @@ pub fn ensure_path() {
     use std::env;
 
     let current = env::var("PATH").unwrap_or_default();
-    let extra_dirs = [
-        "/opt/homebrew/bin",
-        "/usr/local/bin",
-        "/usr/bin",
-        "/bin",
-    ];
+    let extra_dirs = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"];
 
     let mut paths: Vec<&str> = current.split(':').collect();
     for dir in &extra_dirs {
