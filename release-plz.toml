@@ -23,6 +23,9 @@ git_release_name = "CLI v{{ version }}"
 [[package]]
 name = "claude-deck-app"
 publish = false
+release = true
+semver_check = false
+changelog_include = ["claude-deck-core"]
 git_tag_enable = true
 git_tag_name = "app-v{{ version }}"
 git_release_enable = true
