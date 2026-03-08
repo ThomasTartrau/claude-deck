@@ -22,8 +22,7 @@ git_release_name = "CLI v{{ version }}"
 # ── App: no crates.io, tag triggers Tauri builds ─────────
 [[package]]
 name = "claude-deck-app"
-publish = false
-release = true
+git_only = true
 semver_check = false
 changelog_include = ["claude-deck-core"]
 git_tag_enable = true
