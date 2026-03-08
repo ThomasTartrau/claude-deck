@@ -27,3 +27,4 @@ git_release_name = "CLI v{{ version }}"
 [[package]]
 name = "claude-deck-app"
 release = false
+publish = false

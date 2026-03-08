@@ -1,5 +1,5 @@
 /target
-.claude
+.claude/worktrees
 .DS_Store
 
 # App frontend
