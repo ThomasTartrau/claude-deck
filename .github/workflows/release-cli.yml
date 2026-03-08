@@ -58,6 +58,7 @@ jobs:
     name: Update Homebrew tap
     needs: build
     runs-on: macos-latest
+    environment: production
     steps:
       - name: Update formula
         env:
