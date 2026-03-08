@@ -36,7 +36,11 @@ Desktop application for managing multiple [Claude Code](https://docs.anthropic.c
 
 ## Install
 
-Download from [Releases](https://github.com/ThomasTartrau/claude-deck/releases) (macOS, Linux).
+```bash
+brew install --cask ThomasTartrau/claude-deck/claude-deck
+```
+
+Or download from [Releases](https://github.com/ThomasTartrau/claude-deck/releases) (macOS, Linux).
 
 ### Prerequisites
 
