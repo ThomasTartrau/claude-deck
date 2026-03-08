@@ -6,6 +6,7 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebLinksAddon } from "@xterm/addon-web-links";
+import { CanvasAddon } from "@xterm/addon-canvas";
 import "@xterm/xterm/css/xterm.css";
 
 interface TerminalPaneProps {
@@ -65,6 +66,8 @@ export function TerminalPane({
 			cursorBlink: true,
 			fontSize: 13,
 			fontFamily: TERM_FONT_FAMILY,
+			fontWeight: "400",
+			fontWeightBold: "700",
 			theme: {
 				background: "#0a0a0a",
 				foreground: "#e5e5e5",
@@ -99,6 +102,7 @@ export function TerminalPane({
 		term.loadAddon(webLinksAddon);
 		term.unicode.activeVersion = "11";
 		term.open(containerRef.current);
+		term.loadAddon(new CanvasAddon());
 
 		setTimeout(() => fitAddon.fit(), 50);
 
