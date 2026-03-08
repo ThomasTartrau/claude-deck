@@ -304,6 +304,7 @@ function App() {
 					open={launchOpen}
 					onOpenChange={setLaunchOpen}
 					onLaunched={refresh}
+					defaultPath={activeWorkspace}
 				/>
 
 				<SendDialog

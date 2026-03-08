@@ -1,3 +1,4 @@
+use std::env;
 use std::process::Command;
 
 use anyhow::{Context, Result};
@@ -8,13 +9,9 @@ pub const SESSION_PREFIX: &str = "cc-";
 
 pub fn launch_claude_session(name: &str, prompt: Option<&str>, repo: Option<&str>) -> Result<()> {
     let session_name = prefixed_name(name);
-    let cwd = match repo {
-        Some(r) => r.to_string(),
-        None => find_git_root().context("Not inside a git repository")?,
-    };
+    let cwd = resolve_cwd(repo);
 
     let mut claude_cmd = String::from("claude --dangerously-skip-permissions");
-    // Only use --worktree when launching from a git repo
     if find_git_root_at(&cwd).is_some() {
         claude_cmd.push_str(&format!(" --worktree {}", shell_escape(&session_name)));
     }
@@ -27,10 +24,7 @@ pub fn launch_claude_session(name: &str, prompt: Option<&str>, repo: Option<&str
 }
 
 pub fn resume_claude_session(name: &str, repo: Option<&str>) -> Result<()> {
-    let cwd = match repo {
-        Some(r) => r.to_string(),
-        None => find_git_root().context("Not inside a git repository")?,
-    };
+    let cwd = resolve_cwd(repo);
 
     // Kill the dead tmux session first
     let _ = Command::new("tmux")
@@ -115,6 +109,29 @@ pub fn sanitize_name(name: &str) -> String {
         })
         .collect();
     s.trim_matches('-').to_string()
+}
+
+fn resolve_cwd(repo: Option<&str>) -> String {
+    match repo {
+        Some(r) => expand_tilde(r),
+        None => find_git_root()
+            .or_else(|| {
+                env::current_dir()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .ok()
+            })
+            .unwrap_or_else(|| ".".to_string()),
+    }
+}
+
+fn expand_tilde(path: &str) -> String {
+    if path.starts_with("~/") {
+        dirs::home_dir()
+            .map(|h| h.join(&path[2..]).to_string_lossy().to_string())
+            .unwrap_or_else(|| path.to_string())
+    } else {
+        path.to_string()
+    }
 }
 
 fn find_git_root() -> Option<String> {

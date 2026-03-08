@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { launchSession } from "@/lib/api";
 import {
 	Dialog,
@@ -17,18 +17,27 @@ interface LaunchDialogProps {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	onLaunched: () => void;
+	defaultPath?: string | null;
 }
 
 export function LaunchDialog({
 	open,
 	onOpenChange,
 	onLaunched,
+	defaultPath,
 }: LaunchDialogProps) {
 	const [name, setName] = useState("");
 	const [prompt, setPrompt] = useState("");
-	const [path, setPath] = useState("");
+	const [path, setPath] = useState(defaultPath ?? "");
 	const [launching, setLaunching] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+
+	useEffect(() => {
+		if (open) {
+			setPath(defaultPath ?? "");
+			setError(null);
+		}
+	}, [open, defaultPath]);
 
 	function handleLaunch() {
 		if (!name.trim()) return;
