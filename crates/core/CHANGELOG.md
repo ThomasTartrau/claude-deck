@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2](https://github.com/ThomasTartrau/claude-deck/compare/core-v0.1.1...core-v0.1.2) - 2026-03-08
+
+### Fixed
+
+- expand tilde in session path and pre-fill workspace path in launch dialog
+
 ## [0.1.1](https://github.com/ThomasTartrau/claude-deck/compare/core-v0.1.0...core-v0.1.1) - 2026-03-08
 
 ### Added
