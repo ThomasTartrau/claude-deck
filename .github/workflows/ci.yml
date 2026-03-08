@@ -10,18 +10,61 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  fmt:
-    name: Format
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      core: ${{ steps.filter.outputs.core }}
+      cli: ${{ steps.filter.outputs.cli }}
+      app_rust: ${{ steps.filter.outputs.app_rust }}
+      app_frontend: ${{ steps.filter.outputs.app_frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            core:
+              - 'crates/core/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+            cli:
+              - 'crates/cli/**'
+              - 'crates/core/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+            app_rust:
+              - 'app/src-tauri/**'
+              - 'crates/core/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+            app_frontend:
+              - 'app/src/**'
+              - 'app/package.json'
+              - 'app/pnpm-lock.yaml'
+              - 'app/tsconfig*.json'
+              - 'app/biome.json'
+              - 'app/vite.config.ts'
+              - 'app/index.html'
+
+  # ── Core ────────────────────────────────────────────────
+
+  core-fmt:
+    name: core / fmt
+    needs: changes
+    if: needs.changes.outputs.core == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-      - run: cargo fmt --all -- --check
+      - run: cargo fmt -p claude-deck-core -- --check
 
-  clippy:
-    name: Clippy
+  core-clippy:
+    name: core / clippy
+    needs: changes
+    if: needs.changes.outputs.core == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,31 +72,208 @@ jobs:
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
-      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo clippy -p claude-deck-core --all-targets -- -D warnings
 
-  test:
-    name: Tests (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo test --all-targets
-
-  build:
-    name: Build
+  core-test:
+    name: core / test
+    needs: changes
+    if: needs.changes.outputs.core == 'true'
     runs-on: ubuntu-latest
-    needs: [fmt, clippy, test]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo build --release
-      - uses: actions/upload-artifact@v4
+      - run: cargo test -p claude-deck-core --all-targets
+
+  # ── CLI ─────────────────────────────────────────────────
+
+  cli-fmt:
+    name: cli / fmt
+    needs: changes
+    if: needs.changes.outputs.cli == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          name: claude-deck-linux
-          path: target/release/claude-deck
-          retention-days: 7
+          components: rustfmt
+      - run: cargo fmt -p claude-deck-cli -- --check
+
+  cli-clippy:
+    name: cli / clippy
+    needs: changes
+    if: needs.changes.outputs.cli == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy -p claude-deck-cli --all-targets -- -D warnings
+
+  cli-test:
+    name: cli / test
+    needs: changes
+    if: needs.changes.outputs.cli == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test -p claude-deck-cli --all-targets
+
+  # ── App (Rust backend) ──────────────────────────────────
+
+  app-fmt:
+    name: app / fmt
+    needs: changes
+    if: needs.changes.outputs.app_rust == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt -p claude-deck-app -- --check
+
+  app-clippy:
+    name: app / clippy
+    needs: changes
+    if: needs.changes.outputs.app_rust == 'true'
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy -p claude-deck-app --all-targets -- -D warnings
+
+  app-test:
+    name: app / test
+    needs: changes
+    if: needs.changes.outputs.app_rust == 'true'
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test -p claude-deck-app --all-targets
+
+  # ── App (Frontend) ──────────────────────────────────────
+
+  app-lint:
+    name: app / lint
+    needs: changes
+    if: needs.changes.outputs.app_frontend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: latest
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+
+  app-typecheck:
+    name: app / typecheck
+    needs: changes
+    if: needs.changes.outputs.app_frontend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: latest
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec tsc --noEmit
+
+  app-test-frontend:
+    name: app / test-frontend
+    needs: changes
+    if: needs.changes.outputs.app_frontend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: latest
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+
+  # ── Gate ────────────────────────────────────────────────
+
+  ci-status:
+    name: CI
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - core-fmt
+      - core-clippy
+      - core-test
+      - cli-fmt
+      - cli-clippy
+      - cli-test
+      - app-fmt
+      - app-clippy
+      - app-test
+      - app-lint
+      - app-typecheck
+      - app-test-frontend
+    steps:
+      - name: Check results
+        run: |
+          results=(
+            "${{ needs.core-fmt.result }}"
+            "${{ needs.core-clippy.result }}"
+            "${{ needs.core-test.result }}"
+            "${{ needs.cli-fmt.result }}"
+            "${{ needs.cli-clippy.result }}"
+            "${{ needs.cli-test.result }}"
+            "${{ needs.app-fmt.result }}"
+            "${{ needs.app-clippy.result }}"
+            "${{ needs.app-test.result }}"
+            "${{ needs.app-lint.result }}"
+            "${{ needs.app-typecheck.result }}"
+            "${{ needs.app-test-frontend.result }}"
+          )
+          for r in "${results[@]}"; do
+            if [[ "$r" == "failure" || "$r" == "cancelled" ]]; then
+              echo "Job failed with result: $r"
+              exit 1
+            fi
+          done
+          echo "All checks passed"

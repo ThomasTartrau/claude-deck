@@ -1,0 +1,29 @@
+[workspace]
+changelog_update = true
+git_release_enable = false
+git_tag_enable = false
+
+# ── Core lib: publish to crates.io, tag for tracking ─────
+[[package]]
+name = "claude-deck-core"
+publish = true
+git_tag_enable = true
+git_tag_name = "core-v{{ version }}"
+
+# ── CLI: publish to crates.io, tag triggers binary builds ─
+[[package]]
+name = "claude-deck-cli"
+publish = true
+git_tag_enable = true
+git_tag_name = "cli-v{{ version }}"
+git_release_enable = true
+git_release_name = "CLI v{{ version }}"
+
+# ── App: no crates.io, tag triggers Tauri builds ─────────
+[[package]]
+name = "claude-deck-app"
+publish = false
+git_tag_enable = true
+git_tag_name = "app-v{{ version }}"
+git_release_enable = true
+git_release_name = "App v{{ version }}"

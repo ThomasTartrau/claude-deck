@@ -1,0 +1,136 @@
+name: Release App
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: App (${{ matrix.platform }})
+    if: startsWith(github.event.release.tag_name, 'app-v')
+    runs-on: ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: --target aarch64-apple-darwin
+          - platform: macos-latest
+            args: --target x86_64-apple-darwin
+          - platform: ubuntu-22.04
+            args: ""
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Inject version from tag
+        run: |
+          VERSION=${{ github.event.release.tag_name }}
+          VERSION=${VERSION#app-v}
+          echo "APP_VERSION=$VERSION" >> $GITHUB_ENV
+          cd app/src-tauri
+          jq --arg v "$VERSION" '.version = $v' tauri.conf.json > tmp.json && mv tmp.json tauri.conf.json
+
+      - name: Install system dependencies (Ubuntu)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri -> target
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: app
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: app
+          tagName: app-v__VERSION__
+          releaseName: "App v__VERSION__"
+          releaseBody: "See the assets to download and install."
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}
+
+  update-tap:
+    name: Update Homebrew tap
+    needs: build
+    runs-on: macos-latest
+    steps:
+      - name: Update cask
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          VERSION="${TAG#app-v}"
+
+          # Download macOS DMGs
+          gh release download "$TAG" --repo ThomasTartrau/claude-deck --pattern "*.dmg" --dir "$RUNNER_TEMP"
+
+          SHA_ARM=$(shasum -a 256 "$RUNNER_TEMP"/Claude*aarch64*.dmg | cut -d' ' -f1)
+          SHA_X64=$(shasum -a 256 "$RUNNER_TEMP"/Claude*x86_64*.dmg 2>/dev/null | cut -d' ' -f1 || echo "PLACEHOLDER")
+
+          cat > "$RUNNER_TEMP/claude-deck.rb" <<CASK
+          cask "claude-deck" do
+            arch arm: "aarch64", intel: "x86_64"
+
+            version "${VERSION}"
+            sha256 arm:   "${SHA_ARM}",
+                   intel: "${SHA_X64}"
+
+            url "https://github.com/ThomasTartrau/claude-deck/releases/download/app-v#{version}/Claude.Deck_#{version}_#{arch}.dmg"
+            name "Claude Deck"
+            desc "Desktop app to manage multiple Claude Code sessions"
+            homepage "https://github.com/ThomasTartrau/claude-deck"
+
+            depends_on macos: ">= :catalina"
+
+            app "Claude Deck.app"
+
+            zap trash: [
+              "~/Library/Caches/com.claude-deck.app",
+              "~/Library/WebKit/com.claude-deck.app",
+              "~/.config/claude-deck",
+            ]
+          end
+          CASK
+
+          sed -i '' 's/^          //' "$RUNNER_TEMP/claude-deck.rb"
+
+          CONTENT=$(base64 -i "$RUNNER_TEMP/claude-deck.rb")
+          FILE_SHA=$(GH_TOKEN="$HOMEBREW_TAP_TOKEN" gh api repos/ThomasTartrau/homebrew-claude-deck/contents/Casks/claude-deck.rb --jq '.sha' 2>/dev/null || echo "")
+
+          if [ -n "$FILE_SHA" ]; then
+            GH_TOKEN="$HOMEBREW_TAP_TOKEN" gh api repos/ThomasTartrau/homebrew-claude-deck/contents/Casks/claude-deck.rb \
+              --method PUT \
+              -f message="Update Claude Deck App to v${VERSION}" \
+              -f sha="$FILE_SHA" \
+              -f content="$CONTENT"
+          else
+            GH_TOKEN="$HOMEBREW_TAP_TOKEN" gh api repos/ThomasTartrau/homebrew-claude-deck/contents/Casks/claude-deck.rb \
+              --method PUT \
+              -f message="Add Claude Deck App v${VERSION}" \
+              -f content="$CONTENT"
+          fi
