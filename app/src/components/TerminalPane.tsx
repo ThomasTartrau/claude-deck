@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from "react";
 import { ptyClose, ptyWrite, ptyResize, ptyOpen } from "@/lib/api";
+import { modKey } from "@/lib/utils";
 import { listen } from "@tauri-apps/api/event";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
@@ -79,9 +80,9 @@ export function TerminalPane({
 
 		setTimeout(() => fitAddon.fit(), 50);
 
-		// Let ⌘+key shortcuts bubble up to the app
+		// Let modifier+key shortcuts bubble up to the app
 		term.attachCustomKeyEventHandler((e) => {
-			if (e.metaKey) return false;
+			if (e.metaKey || e.ctrlKey) return false;
 			return true;
 		});
 
@@ -219,7 +220,9 @@ export function TerminalPane({
 								: "text-muted-foreground hover:text-foreground hover:bg-white/5"
 						}`}
 					>
-						{fullscreen ? "⌘F Exit fullscreen" : "⌘F Fullscreen"}
+						{fullscreen
+							? `${modKey}F Exit fullscreen`
+							: `${modKey}F Fullscreen`}
 					</button>
 				)}
 			</div>

@@ -25,6 +25,7 @@ import { QuickActionList } from "@/components/QuickActionList";
 import { useSessionList } from "@/hooks/useSessionList";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { filterSessions } from "@/lib/filters";
+import { modKey } from "@/lib/utils";
 import type { Session } from "@/types/session";
 
 function App() {
@@ -108,7 +109,7 @@ function App() {
 		setRenameOpen(true);
 	}, []);
 
-	// Keyboard shortcuts (all ⌘+key)
+	// Keyboard shortcuts (⌘+key on macOS, Ctrl+key on Linux)
 	useKeyboardShortcuts({
 		anyDialogOpen,
 		selectedSession,
@@ -230,47 +231,69 @@ function App() {
 				{!terminalFullscreen && (
 					<div className="border-t border-border px-4 py-1 text-[10px] text-muted-foreground flex gap-3">
 						<span>
-							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">⌘↑↓</kbd>{" "}
+							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">
+								{modKey}↑↓
+							</kbd>{" "}
 							Navigate
 						</span>
 						<span>
-							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">⌘↵</kbd>{" "}
+							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">
+								{modKey}↵
+							</kbd>{" "}
 							Fullscreen
 						</span>
 						<span>
-							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">⌘/</kbd>{" "}
+							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">
+								{modKey}/
+							</kbd>{" "}
 							Search
 						</span>
 						<span>
-							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">⌘N</kbd>{" "}
+							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">
+								{modKey}N
+							</kbd>{" "}
 							New
 						</span>
 						<span>
-							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">⌘T</kbd>{" "}
+							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">
+								{modKey}T
+							</kbd>{" "}
 							Tags
 						</span>
 						<span>
-							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">⌘W</kbd>{" "}
+							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">
+								{modKey}W
+							</kbd>{" "}
 							Workspaces
 						</span>
 						<span>
-							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">⌘J</kbd>{" "}
+							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">
+								{modKey}J
+							</kbd>{" "}
 							Quick Actions
 						</span>
 						<span>
-							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">⌘P</kbd>{" "}
+							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">
+								{modKey}P
+							</kbd>{" "}
 							Send Prompt
 						</span>
 						<span>
-							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">⌘R</kbd>{" "}
+							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">
+								{modKey}R
+							</kbd>{" "}
 							Rename
 						</span>
 						<span>
-							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">⌘K</kbd>{" "}
+							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">
+								{modKey}K
+							</kbd>{" "}
 							Kill
 						</span>
 						<span>
-							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">⌘F</kbd>{" "}
+							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">
+								{modKey}F
+							</kbd>{" "}
 							Fullscreen
 						</span>
 					</div>

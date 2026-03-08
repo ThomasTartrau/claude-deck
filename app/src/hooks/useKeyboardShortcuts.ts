@@ -1,5 +1,6 @@
 import { useEffect, useCallback } from "react";
 import type { Session } from "@/types/session";
+import { isMac } from "@/lib/utils";
 
 interface UseKeyboardShortcutsOptions {
 	anyDialogOpen: boolean;
@@ -41,7 +42,8 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
 	const handleKeyDown = useCallback(
 		(e: KeyboardEvent) => {
 			if (anyDialogOpen) return;
-			if (!e.metaKey || e.ctrlKey || e.altKey) return;
+			const mod = isMac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
+			if (!mod || e.altKey) return;
 
 			switch (e.key) {
 				case "f":
