@@ -3,6 +3,7 @@ use clap::{Parser, Subcommand};
 #[derive(Debug, Parser)]
 #[command(
     name = "claude-deck",
+    version,
     about = "TUI dashboard for managing Claude Code sessions via tmux"
 )]
 pub struct Cli {
