@@ -22,6 +22,12 @@ Monitor status, launch sessions, switch workspaces, tag and filter — all from 
 ## Install
 
 ```bash
+brew install ThomasTartrau/claude-deck/claude-deck
+```
+
+Or via cargo:
+
+```bash
 cargo install claude-deck-cli
 ```
 

@@ -17,11 +17,18 @@ Manage multiple [Claude Code](https://docs.anthropic.com/en/docs/claude-code) se
 **CLI** (requires tmux):
 
 ```bash
+brew install ThomasTartrau/claude-deck/claude-deck
+# or
 cargo install claude-deck-cli
-claude-deck
 ```
 
-**App**: download from [Releases](https://github.com/ThomasTartrau/claude-deck/releases) (macOS, Linux).
+**App** (macOS):
+
+```bash
+brew install --cask ThomasTartrau/claude-deck/claude-deck
+```
+
+Or download from [Releases](https://github.com/ThomasTartrau/claude-deck/releases).
 
 ## License
 
