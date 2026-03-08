@@ -2,7 +2,6 @@
 changelog_update = true
 git_release_enable = false
 git_tag_enable = false
-publish_no_verify = true
 
 # ── Core lib: publish to crates.io, tag for tracking ─────
 [[package]]
@@ -20,14 +19,11 @@ git_tag_name = "cli-v{{ version }}"
 git_release_enable = true
 git_release_name = "CLI v{{ version }}"
 
-# ── App: no crates.io, tag triggers Tauri builds ─────────
+# ── App: excluded from release-plz ────────────────────────
+# Tauri's build.rs generates platform-specific files in gen/schemas/
+# outside OUT_DIR, which makes cargo package --verify fail.
+# App releases are handled manually: create tag app-vX.Y.Z → triggers
+# the release-app workflow.
 [[package]]
 name = "claude-deck-app"
-git_only = true
-semver_check = false
-publish_no_verify = true
-changelog_include = ["claude-deck-core"]
-git_tag_enable = true
-git_tag_name = "app-v{{ version }}"
-git_release_enable = true
-git_release_name = "App v{{ version }}"
+release = false
