@@ -16,18 +16,19 @@ interface TerminalPaneProps {
 }
 
 const TERM_FONT_FAMILY =
-	"'Geist Mono Variable', 'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace";
+	"'Geist Mono', 'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace";
 
 function useFontReady(fontFamily: string): boolean {
 	const [ready, setReady] = useState(false);
 	useEffect(() => {
-		document.fonts.ready.then(() => {
-			// Check if the preferred font loaded, otherwise still mark ready for fallback
-			document.fonts
-				.load(`13px ${fontFamily.split(",")[0]}`)
-				.then(() => setReady(true))
-				.catch(() => setReady(true));
-		});
+		const font = fontFamily.split(",")[0];
+		// WebKit has a known bug where document.fonts.ready resolves too early.
+		// Load the font explicitly with the weight we need, then add a safety delay.
+		document.fonts
+			.load(`400 13px ${font}`)
+			.then(() => new Promise<void>((r) => setTimeout(r, 150)))
+			.then(() => setReady(true))
+			.catch(() => setReady(true));
 	}, [fontFamily]);
 	return ready;
 }
