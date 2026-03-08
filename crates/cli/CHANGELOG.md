@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.3](https://github.com/ThomasTartrau/claude-deck/compare/cli-v0.4.2...cli-v0.4.3) - 2026-03-08
+
+### Added
+
+- add --version flag to CLI
+
 ## [0.4.2](https://github.com/ThomasTartrau/claude-deck/compare/cli-v0.4.1...cli-v0.4.2) - 2026-03-08
 
 ### Other
