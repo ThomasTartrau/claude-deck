@@ -20,19 +20,21 @@ Desktop application for managing multiple [Claude Code](https://docs.anthropic.c
 
 ## Keyboard shortcuts
 
+> `⌘` on macOS, `Ctrl` on Linux.
+
 | Shortcut | Action |
 |----------|--------|
-| `⌘↑` / `⌘↓` | Navigate sessions |
-| `⌘Enter` | Toggle fullscreen terminal |
-| `⌘N` | New session |
-| `⌘P` | Send prompt |
-| `⌘T` | Tags |
-| `⌘W` | Workspaces |
-| `⌘J` | Quick actions |
-| `⌘R` | Rename |
-| `⌘K` | Kill session |
-| `⌘/` | Search |
-| `⌘F` | Fullscreen |
+| `Mod+↑` / `Mod+↓` | Navigate sessions |
+| `Mod+Enter` | Toggle fullscreen terminal |
+| `Mod+N` | New session |
+| `Mod+P` | Send prompt |
+| `Mod+T` | Tags |
+| `Mod+W` | Workspaces |
+| `Mod+J` | Quick actions |
+| `Mod+R` | Rename |
+| `Mod+K` | Kill session |
+| `Mod+/` | Search |
+| `Mod+F` | Fullscreen |
 
 ## Install
 
