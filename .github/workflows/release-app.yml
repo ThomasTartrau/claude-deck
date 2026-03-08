@@ -91,11 +91,11 @@ jobs:
           gh release download "$TAG" --repo ThomasTartrau/claude-deck --pattern "*.dmg" --dir "$RUNNER_TEMP"
 
           SHA_ARM=$(shasum -a 256 "$RUNNER_TEMP"/Claude*aarch64*.dmg | cut -d' ' -f1)
-          SHA_X64=$(shasum -a 256 "$RUNNER_TEMP"/Claude*x86_64*.dmg 2>/dev/null | cut -d' ' -f1 || echo "PLACEHOLDER")
+          SHA_X64=$(shasum -a 256 "$RUNNER_TEMP"/Claude*x64*.dmg 2>/dev/null | cut -d' ' -f1 || echo "PLACEHOLDER")
 
           cat > "$RUNNER_TEMP/claude-deck.rb" <<CASK
           cask "claude-deck" do
-            arch arm: "aarch64", intel: "x86_64"
+            arch arm: "aarch64", intel: "x64"
 
             version "${VERSION}"
             sha256 arm:   "${SHA_ARM}",
