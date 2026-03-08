@@ -217,6 +217,11 @@ fn delete_quick_action(index: usize) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+fn get_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -251,6 +256,7 @@ pub fn run() {
             get_quick_actions,
             save_quick_action,
             delete_quick_action,
+            get_version,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
