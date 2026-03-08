@@ -4,6 +4,7 @@ import { modKey } from "@/lib/utils";
 import { listen } from "@tauri-apps/api/event";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
+import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import "@xterm/xterm/css/xterm.css";
 
@@ -73,9 +74,12 @@ export function TerminalPane({
 		});
 
 		const fitAddon = new FitAddon();
+		const unicode11Addon = new Unicode11Addon();
 		const webLinksAddon = new WebLinksAddon();
 		term.loadAddon(fitAddon);
+		term.loadAddon(unicode11Addon);
 		term.loadAddon(webLinksAddon);
+		term.unicode.activeVersion = "11";
 		term.open(containerRef.current);
 
 		setTimeout(() => fitAddon.fit(), 50);
