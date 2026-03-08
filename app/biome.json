@@ -9,7 +9,7 @@
 		"ignoreUnknown": false,
 		"includes": [
 			"**/*.{js,jsx,mjs,cjs,ts,tsx,json}",
-			"!{src/components/ui,dist,.claude}"
+			"!{src/components/ui,dist,.claude,src-tauri/gen}"
 		]
 	},
 	"formatter": {

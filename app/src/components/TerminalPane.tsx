@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { ptyClose, ptyWrite, ptyResize, ptyOpen } from "@/lib/api";
 import { modKey } from "@/lib/utils";
 import { listen } from "@tauri-apps/api/event";
@@ -14,11 +14,29 @@ interface TerminalPaneProps {
 	onToggleFullscreen?: () => void;
 }
 
+const TERM_FONT_FAMILY =
+	"'Geist Mono Variable', 'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace";
+
+function useFontReady(fontFamily: string): boolean {
+	const [ready, setReady] = useState(false);
+	useEffect(() => {
+		document.fonts.ready.then(() => {
+			// Check if the preferred font loaded, otherwise still mark ready for fallback
+			document.fonts
+				.load(`13px ${fontFamily.split(",")[0]}`)
+				.then(() => setReady(true))
+				.catch(() => setReady(true));
+		});
+	}, [fontFamily]);
+	return ready;
+}
+
 export function TerminalPane({
 	sessionName,
 	fullscreen,
 	onToggleFullscreen,
 }: TerminalPaneProps) {
+	const fontReady = useFontReady(TERM_FONT_FAMILY);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const termRef = useRef<Terminal | null>(null);
 	const fitAddonRef = useRef<FitAddon | null>(null);
@@ -39,15 +57,14 @@ export function TerminalPane({
 		return Promise.resolve();
 	}, []);
 
-	// Setup terminal once
+	// Setup terminal once — wait for font to load
 	useEffect(() => {
-		if (!containerRef.current) return;
+		if (!containerRef.current || !fontReady) return;
 
 		const term = new Terminal({
 			cursorBlink: true,
 			fontSize: 13,
-			fontFamily:
-				"'Geist Mono Variable', 'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace",
+			fontFamily: TERM_FONT_FAMILY,
 			theme: {
 				background: "#0a0a0a",
 				foreground: "#e5e5e5",
@@ -121,7 +138,7 @@ export function TerminalPane({
 			termRef.current = null;
 			fitAddonRef.current = null;
 		};
-	}, [stopPty]);
+	}, [stopPty, fontReady]);
 
 	// Refit when fullscreen changes — multiple passes to catch layout settling
 	useEffect(() => {
