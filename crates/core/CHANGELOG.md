@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4](https://github.com/ThomasTartrau/claude-deck/compare/core-v0.1.3...core-v0.1.4) - 2026-03-08
+
+### Fixed
+
+- use login shell for tmux sessions and set TERM for PTY
+
 ## [0.1.3](https://github.com/ThomasTartrau/claude-deck/compare/core-v0.1.2...core-v0.1.3) - 2026-03-08
 
 ### Fixed
