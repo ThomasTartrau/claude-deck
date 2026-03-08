@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3](https://github.com/ThomasTartrau/claude-deck/compare/core-v0.1.2...core-v0.1.3) - 2026-03-08
+
+### Fixed
+
+- ensure homebrew paths are in PATH for macOS GUI app
+
+### Other
+
+- fix formatting in ensure_path
+
 ## [0.1.2](https://github.com/ThomasTartrau/claude-deck/compare/core-v0.1.1...core-v0.1.2) - 2026-03-08
 
 ### Fixed
