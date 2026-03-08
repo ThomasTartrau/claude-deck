@@ -60,6 +60,7 @@ pub fn open(app_handle: AppHandle, session_name: &str, cols: u16, rows: u16) -> 
 
     let mut cmd = CommandBuilder::new("tmux");
     cmd.args(["attach-session", "-t", session_name]);
+    cmd.env("TERM", "xterm-256color");
 
     let child = pair
         .slave

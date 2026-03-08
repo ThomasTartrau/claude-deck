@@ -56,6 +56,9 @@ pub fn kill_session(session_name: &str) -> Result<()> {
 }
 
 fn create_tmux_session(session_name: &str, cwd: &str, shell_cmd: &str) -> Result<()> {
+    // Use a login shell so the user's PATH (with claude, git, etc.) is loaded.
+    // GUI apps on macOS don't inherit shell PATH, so `sh -c` would miss binaries.
+    let wrapped = format!("exec bash -lc {}", shell_escape(shell_cmd));
     let output = Command::new("tmux")
         .args([
             "new-session",
@@ -70,7 +73,7 @@ fn create_tmux_session(session_name: &str, cwd: &str, shell_cmd: &str) -> Result
             "50",
             "sh",
             "-c",
-            shell_cmd,
+            &wrapped,
         ])
         .output()
         .context("Failed to create tmux session")?;
