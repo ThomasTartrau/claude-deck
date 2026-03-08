@@ -224,6 +224,8 @@ fn get_version() -> String {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    claude_deck_core::ensure_path();
+
     tauri::Builder::default()
         .setup(|app| {
             if cfg!(debug_assertions) {
