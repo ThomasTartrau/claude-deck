@@ -2,6 +2,7 @@
 changelog_update = true
 git_release_enable = false
 git_tag_enable = false
+publish_no_verify = true
 
 # ── Core lib: publish to crates.io, tag for tracking ─────
 [[package]]
