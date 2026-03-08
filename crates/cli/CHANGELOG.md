@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.4](https://github.com/ThomasTartrau/claude-deck/compare/cli-v0.4.3...cli-v0.4.4) - 2026-03-08
+
+### Other
+
+- Merge pull request #7 from ThomasTartrau/feat/app-version
+- add Homebrew install instructions to READMEs
+
 ## [0.4.3](https://github.com/ThomasTartrau/claude-deck/compare/cli-v0.4.2...cli-v0.4.3) - 2026-03-08
 
 ### Added
