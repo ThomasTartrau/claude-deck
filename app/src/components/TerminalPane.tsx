@@ -226,7 +226,7 @@ export function TerminalPane({
 					</button>
 				)}
 			</div>
-			<div ref={containerRef} className="flex-1 p-1" />
+			<div ref={containerRef} className="flex-1" />
 		</div>
 	);
 }
