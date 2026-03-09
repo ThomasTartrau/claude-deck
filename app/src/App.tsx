@@ -1,5 +1,13 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { ensureHooks, killSession } from "@/lib/api";
+import {
+	ensureHooks,
+	killSession,
+	setCollapsedGroups as persistCollapsedGroups,
+	getConfig,
+	suggestWorkspace,
+	addWorkspace,
+	setPinnedWorkspace,
+} from "@/lib/api";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import {
 	AlertDialog,
@@ -22,10 +30,13 @@ import { SendDialog } from "@/components/SendDialog";
 import { RenameDialog } from "@/components/RenameDialog";
 import { TagPicker } from "@/components/TagPicker";
 import { WorkspacePicker } from "@/components/WorkspacePicker";
+import { WorkspaceTabs } from "@/components/WorkspaceTabs";
+import { BulkActions } from "@/components/BulkActions";
 import { QuickActionList } from "@/components/QuickActionList";
 import { useSessionList } from "@/hooks/useSessionList";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { Toaster } from "@/components/ui/sonner";
+import { toast } from "sonner";
 import { filterSessions } from "@/lib/filters";
 import { modKey } from "@/lib/utils";
 import type { Session } from "@/types/session";
@@ -55,6 +66,33 @@ function App() {
 	const [activeTagFilters, setActiveTagFilters] = useState<string[]>([]);
 	const [activeWorkspace, setActiveWorkspace] = useState<string | null>(null);
 
+	// Multi-select state
+	const [selectedSessions, setSelectedSessions] = useState<Set<string>>(
+		new Set(),
+	);
+
+	// Collapsed groups state
+	const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
+		new Set(),
+	);
+
+	// Auto-detect workspace suggestions
+	const suggestedPathsRef = useRef<Set<string>>(new Set());
+
+	// Load persisted config on mount
+	useEffect(() => {
+		getConfig()
+			.then((config) => {
+				if (config.pinned_workspace) {
+					setActiveWorkspace(config.pinned_workspace);
+				}
+				if (config.collapsed_groups.length > 0) {
+					setCollapsedGroups(new Set(config.collapsed_groups));
+				}
+			})
+			.catch(() => {});
+	}, []);
+
 	// Check if any dialog is open
 	const anyDialogOpen =
 		launchOpen ||
@@ -72,10 +110,7 @@ function App() {
 		[sessions, searchText, activeTagFilters, activeWorkspace],
 	);
 
-	const hasFilters =
-		searchText !== "" ||
-		activeTagFilters.length > 0 ||
-		activeWorkspace !== null;
+	const hasFilters = searchText !== "" || activeTagFilters.length > 0;
 
 	// Keep selected session in sync with refreshed data, clear if gone
 	const selectedNameRef = useRef<string | null>(null);
@@ -89,6 +124,41 @@ function App() {
 			setSelectedSession(updated);
 		} else {
 			setSelectedSession(null);
+		}
+	}, [sessions]);
+
+	// Auto-detect workspace (feature 9)
+	useEffect(() => {
+		for (const session of sessions) {
+			if (
+				session.pane_path &&
+				!suggestedPathsRef.current.has(session.pane_path)
+			) {
+				suggestedPathsRef.current.add(session.pane_path);
+				suggestWorkspace(session.pane_path)
+					.then((suggestion) => {
+						if (suggestion) {
+							const folderName = suggestion.split("/").pop() || suggestion;
+							toast(`New project detected: ${folderName}`, {
+								description: suggestion,
+								action: {
+									label: "Add workspace",
+									onClick: () => {
+										addWorkspace(suggestion)
+											.then(() => {
+												toast.success(`Added workspace: ${folderName}`);
+											})
+											.catch((err) => {
+												toast.error(`Failed: ${err}`);
+											});
+									},
+								},
+								duration: 8000,
+							});
+						}
+					})
+					.catch(() => {});
+			}
 		}
 	}, [sessions]);
 
@@ -114,6 +184,31 @@ function App() {
 		setRenameOpen(true);
 	}, []);
 
+	const handleWorkspaceSelected = useCallback((path: string | null) => {
+		setActiveWorkspace(path);
+		setPinnedWorkspace(path).catch(() => {});
+	}, []);
+
+	const handleToggleGroup = useCallback((status: string) => {
+		setCollapsedGroups((prev) => {
+			const next = new Set(prev);
+			if (next.has(status)) {
+				next.delete(status);
+			} else {
+				next.add(status);
+			}
+			return next;
+		});
+	}, []);
+
+	// Persist collapsed groups on change
+	useEffect(() => {
+		const timeout = setTimeout(() => {
+			persistCollapsedGroups(Array.from(collapsedGroups)).catch(() => {});
+		}, 500);
+		return () => clearTimeout(timeout);
+	}, [collapsedGroups]);
+
 	// Keyboard shortcuts (⌘+key on macOS, Ctrl+key on Linux)
 	useKeyboardShortcuts({
 		anyDialogOpen,
@@ -133,6 +228,13 @@ function App() {
 		handleRename,
 		toggleDiffView: () =>
 			setRightPanelView((v) => (v === "terminal" ? "diff" : "terminal")),
+		// Multi-select
+		selectAll: () => {
+			const allNames = new Set(filteredSessions.map((s) => s.name));
+			setSelectedSessions(allNames);
+		},
+		clearSelection: () => setSelectedSessions(new Set()),
+		selectedSessions,
 	});
 
 	function confirmKill() {
@@ -157,6 +259,7 @@ function App() {
 		setActiveTagFilters([]);
 		setActiveWorkspace(null);
 		setShowSearch(false);
+		setPinnedWorkspace(null).catch(() => {});
 	}
 
 	return (
@@ -166,7 +269,6 @@ function App() {
 					<Header
 						sessions={sessions}
 						onNewSession={() => setLaunchOpen(true)}
-						onOpenWorkspaces={() => setWorkspacePickerOpen(true)}
 					/>
 				)}
 
@@ -176,30 +278,51 @@ function App() {
 						onSearchChange={setSearchText}
 						activeTagFilters={activeTagFilters}
 						onTagFilterChange={setActiveTagFilters}
-						activeWorkspace={activeWorkspace}
-						onWorkspaceClick={() => setWorkspacePickerOpen(true)}
 						onClearFilters={handleClearFilters}
 					/>
 				)}
 
 				<div className="flex flex-1 overflow-hidden">
-					{/* Sessions Table */}
+					{/* Sessions Panel */}
 					<div
-						className={`w-[45%] border-r border-border overflow-hidden ${terminalFullscreen ? "hidden" : ""}`}
+						className={`w-[45%] border-r border-border overflow-hidden flex flex-col ${terminalFullscreen ? "hidden" : ""}`}
 					>
-						<SessionsTable
-							sessions={filteredSessions}
-							selectedSession={selectedSession}
-							onSelectSession={(session) => {
-								setSelectedSession(session);
-								setTerminalSession(session?.name ?? null);
-							}}
-							onDoubleClickSession={(session) => {
-								setSelectedSession(session);
-								setTerminalSession(session.name);
-								setTerminalFullscreen(true);
-							}}
-							loading={loading}
+						{/* Workspace Tabs */}
+						<WorkspaceTabs
+							sessions={sessions}
+							activeWorkspace={activeWorkspace}
+							onWorkspaceSelected={handleWorkspaceSelected}
+							onManageWorkspaces={() => setWorkspacePickerOpen(true)}
+						/>
+
+						{/* Sessions Table with grouping */}
+						<div className="flex-1 overflow-hidden">
+							<SessionsTable
+								sessions={filteredSessions}
+								selectedSession={selectedSession}
+								onSelectSession={(session) => {
+									setSelectedSession(session);
+									setTerminalSession(session?.name ?? null);
+								}}
+								onDoubleClickSession={(session) => {
+									setSelectedSession(session);
+									setTerminalSession(session.name);
+									setTerminalFullscreen(true);
+								}}
+								loading={loading}
+								selectedSessions={selectedSessions}
+								onSelectionChange={setSelectedSessions}
+								collapsedGroups={collapsedGroups}
+								onToggleGroup={handleToggleGroup}
+							/>
+						</div>
+
+						{/* Bulk Actions bar */}
+						<BulkActions
+							selectedSessions={selectedSessions}
+							sessions={sessions}
+							onClearSelection={() => setSelectedSessions(new Set())}
+							onRefresh={refresh}
 						/>
 					</div>
 
@@ -307,6 +430,12 @@ function App() {
 						</span>
 						<span>
 							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">
+								{modKey}A
+							</kbd>{" "}
+							Select All
+						</span>
+						<span>
+							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">
 								{modKey}T
 							</kbd>{" "}
 							Tags
@@ -399,8 +528,9 @@ function App() {
 				<WorkspacePicker
 					open={workspacePickerOpen}
 					onOpenChange={setWorkspacePickerOpen}
-					onWorkspaceSelected={setActiveWorkspace}
+					onWorkspaceSelected={handleWorkspaceSelected}
 					activeWorkspace={activeWorkspace}
+					sessions={sessions}
 				/>
 
 				{/* Kill confirmation */}
@@ -417,12 +547,20 @@ function App() {
 							</AlertDialogDescription>
 						</AlertDialogHeader>
 						<AlertDialogFooter>
-							<AlertDialogCancel>Cancel</AlertDialogCancel>
+							<AlertDialogCancel>
+								Cancel{" "}
+								<kbd className="ml-1.5 px-1.5 py-0.5 rounded bg-foreground/15 text-[10px] font-mono font-semibold">
+									n
+								</kbd>
+							</AlertDialogCancel>
 							<AlertDialogAction
 								onClick={confirmKill}
 								className="bg-destructive text-white hover:bg-destructive/90"
 							>
-								Kill
+								Kill{" "}
+								<kbd className="ml-1.5 px-1.5 py-0.5 rounded bg-white/25 text-[11px] font-mono font-bold">
+									y
+								</kbd>
 							</AlertDialogAction>
 						</AlertDialogFooter>
 					</AlertDialogContent>

@@ -7,8 +7,6 @@ interface FilterBarProps {
 	onSearchChange: (text: string) => void;
 	activeTagFilters: string[];
 	onTagFilterChange: (tags: string[]) => void;
-	activeWorkspace: string | null;
-	onWorkspaceClick: () => void;
 	onClearFilters: () => void;
 }
 
@@ -17,14 +15,9 @@ export function FilterBar({
 	onSearchChange,
 	activeTagFilters,
 	onTagFilterChange,
-	activeWorkspace,
-	onWorkspaceClick,
 	onClearFilters,
 }: FilterBarProps) {
-	const hasFilters =
-		searchText.length > 0 ||
-		activeTagFilters.length > 0 ||
-		activeWorkspace !== null;
+	const hasFilters = searchText.length > 0 || activeTagFilters.length > 0;
 
 	function handleRemoveTag(tag: string) {
 		onTagFilterChange(activeTagFilters.filter((t) => t !== tag));
@@ -48,19 +41,6 @@ export function FilterBar({
 			</div>
 
 			<div className="flex flex-1 items-center gap-1.5 overflow-x-auto">
-				{activeWorkspace && (
-					<button onClick={onWorkspaceClick}>
-						<Badge
-							variant="outline"
-							className="gap-1 cursor-pointer truncate max-w-40"
-						>
-							<span className="truncate font-mono text-[10px]">
-								{activeWorkspace.split("/").pop()}
-							</span>
-						</Badge>
-					</button>
-				)}
-
 				{activeTagFilters.map((tag) => (
 					<Badge
 						key={tag}

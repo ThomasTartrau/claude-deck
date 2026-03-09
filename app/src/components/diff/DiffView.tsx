@@ -551,12 +551,20 @@ export function DiffView({
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
-						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogCancel>
+							Cancel{" "}
+							<kbd className="ml-1.5 px-1.5 py-0.5 rounded bg-foreground/15 text-[10px] font-mono font-semibold">
+								n
+							</kbd>
+						</AlertDialogCancel>
 						<AlertDialogAction
 							onClick={confirmDiscard}
 							className="bg-destructive text-white hover:bg-destructive/90"
 						>
-							Discard
+							Discard{" "}
+							<kbd className="ml-1.5 px-1.5 py-0.5 rounded bg-white/25 text-[11px] font-mono font-bold">
+								y
+							</kbd>
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>

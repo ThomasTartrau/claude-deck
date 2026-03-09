@@ -14,6 +14,8 @@ pub struct SavedSession {
 pub struct Workspace {
     pub name: String,
     pub path: String,
+    #[serde(default)]
+    pub color: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -30,6 +32,10 @@ pub struct Config {
     pub quick_actions: Vec<QuickAction>,
     #[serde(default)]
     pub tags: HashMap<String, Vec<String>>,
+    #[serde(default)]
+    pub pinned_workspace: Option<String>,
+    #[serde(default)]
+    pub collapsed_groups: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -54,6 +60,8 @@ impl Default for Config {
             workspaces: Vec::new(),
             quick_actions: Vec::new(),
             tags: HashMap::new(),
+            pinned_workspace: None,
+            collapsed_groups: Vec::new(),
         }
     }
 }
@@ -104,8 +112,22 @@ impl Config {
 
     pub fn add_workspace(&mut self, name: String, path: String) {
         if !self.workspaces.iter().any(|w| w.path == path) {
-            self.workspaces.push(Workspace { name, path });
+            self.workspaces.push(Workspace {
+                name,
+                path,
+                color: None,
+            });
         }
+    }
+
+    pub fn update_workspace_color(&mut self, path: &str, color: Option<String>) {
+        if let Some(ws) = self.workspaces.iter_mut().find(|w| w.path == path) {
+            ws.color = color;
+        }
+    }
+
+    pub fn set_collapsed_groups(&mut self, groups: Vec<String>) {
+        self.collapsed_groups = groups;
     }
 
     pub fn remove_workspace(&mut self, idx: usize) {
@@ -191,6 +213,7 @@ mod tests {
         config.workspaces.push(Workspace {
             name: "myproject".into(),
             path: "/home/user/myproject".into(),
+            color: None,
         });
         config
             .tags

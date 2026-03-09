@@ -45,10 +45,33 @@ function AlertDialogContent({
 }: AlertDialogPrimitive.Popup.Props & {
   size?: "default" | "sm"
 }) {
+  const popupRef = React.useRef<HTMLDivElement>(null)
+
+  React.useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const popup = popupRef.current
+      if (!popup) return
+
+      if (e.key === "y" || e.key === "Y") {
+        e.preventDefault()
+        const action = popup.querySelector<HTMLElement>('[data-slot="alert-dialog-action"]')
+        action?.click()
+      } else if (e.key === "n" || e.key === "N") {
+        e.preventDefault()
+        const cancel = popup.querySelector<HTMLElement>('[data-slot="alert-dialog-cancel"]')
+        cancel?.click()
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [])
+
   return (
     <AlertDialogPortal>
       <AlertDialogOverlay />
       <AlertDialogPrimitive.Popup
+        ref={popupRef}
         data-slot="alert-dialog-content"
         data-size={size}
         className={cn(

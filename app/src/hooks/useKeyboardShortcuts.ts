@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useRef } from "react";
 import type { Session } from "@/types/session";
 import { isMac } from "@/lib/utils";
 
@@ -19,6 +19,10 @@ interface UseKeyboardShortcutsOptions {
 	requestKill: (session: Session) => void;
 	handleRename: (session: Session) => void;
 	toggleDiffView: () => void;
+	// Multi-select
+	selectAll: () => void;
+	clearSelection: () => void;
+	selectedSessions: Set<string>;
 }
 
 export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
@@ -39,7 +43,14 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
 		requestKill,
 		handleRename,
 		toggleDiffView,
+		selectAll,
+		clearSelection,
+		selectedSessions,
 	} = options;
+
+	// Use ref to avoid recreating the keydown handler on every selection change
+	const selectedSessionsRef = useRef(selectedSessions);
+	selectedSessionsRef.current = selectedSessions;
 
 	const handleKeyDown = useCallback(
 		(e: KeyboardEvent) => {
@@ -48,6 +59,14 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
 			if (!mod || e.altKey) return;
 
 			switch (e.key) {
+				case "a":
+					e.preventDefault();
+					if (selectedSessionsRef.current.size > 0) {
+						clearSelection();
+					} else {
+						selectAll();
+					}
+					break;
 				case "f":
 					if (selectedSession) {
 						e.preventDefault();
@@ -152,6 +171,8 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
 			setWorkspacePickerOpen,
 			setQuickActionOpen,
 			toggleDiffView,
+			selectAll,
+			clearSelection,
 		],
 	);
 

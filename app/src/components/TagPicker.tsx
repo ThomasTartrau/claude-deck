@@ -20,6 +20,8 @@ interface TagPickerProps {
 	sessionName: string;
 	currentTags: string[];
 	onTagsUpdated: () => void;
+	bulkMode?: boolean;
+	bulkSessionNames?: string[];
 }
 
 export function TagPicker({
@@ -28,6 +30,8 @@ export function TagPicker({
 	sessionName,
 	currentTags,
 	onTagsUpdated,
+	bulkMode,
+	bulkSessionNames,
 }: TagPickerProps) {
 	const [allTags, setAllTags] = useState<string[]>([]);
 	const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -84,7 +88,9 @@ export function TagPicker({
 		setSaving(true);
 		setError(null);
 
-		setTags(sessionName, selectedTags)
+		const names =
+			bulkMode && bulkSessionNames ? bulkSessionNames : [sessionName];
+		Promise.all(names.map((name) => setTags(name, selectedTags)))
 			.then(() => {
 				onTagsUpdated();
 				onOpenChange(false);
@@ -103,8 +109,14 @@ export function TagPicker({
 				<DialogHeader>
 					<DialogTitle>Manage Tags</DialogTitle>
 					<DialogDescription>
-						Tags for{" "}
-						<span className="font-mono font-medium">{sessionName}</span>
+						{bulkMode && bulkSessionNames ? (
+							`Tags for ${bulkSessionNames.length} sessions`
+						) : (
+							<>
+								Tags for{" "}
+								<span className="font-mono font-medium">{sessionName}</span>
+							</>
+						)}
 					</DialogDescription>
 				</DialogHeader>
 				<div className="space-y-3">

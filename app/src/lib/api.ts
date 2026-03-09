@@ -43,10 +43,13 @@ export function setTags(sessionName: string, tags: string[]): Promise<void> {
 export interface Workspace {
 	name: string;
 	path: string;
+	color: string | null;
 }
 
 export interface Config {
 	workspaces: Workspace[];
+	pinned_workspace: string | null;
+	collapsed_groups: string[];
 }
 
 export function getConfig(): Promise<Config> {
@@ -59,6 +62,25 @@ export function addWorkspace(path: string): Promise<void> {
 
 export function removeWorkspace(path: string): Promise<void> {
 	return invoke("remove_workspace", { path });
+}
+
+export function updateWorkspaceColor(
+	path: string,
+	color: string | null,
+): Promise<void> {
+	return invoke("update_workspace_color", { path, color });
+}
+
+export function setPinnedWorkspace(path: string | null): Promise<void> {
+	return invoke("set_pinned_workspace", { path });
+}
+
+export function setCollapsedGroups(groups: string[]): Promise<void> {
+	return invoke("set_collapsed_groups", { groups });
+}
+
+export function suggestWorkspace(sessionPath: string): Promise<string | null> {
+	return invoke<string | null>("suggest_workspace", { sessionPath });
 }
 
 // ── Quick Actions ───────────────────────────────────────────────────
