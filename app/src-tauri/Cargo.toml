@@ -1,6 +1,6 @@
 [package]
 name = "claude-deck-app"
-version = "0.1.12"
+version = "0.1.13"
 description = "Desktop app for managing Claude Code sessions"
 authors = ["ThomasTartrau"]
 license = "MIT"
