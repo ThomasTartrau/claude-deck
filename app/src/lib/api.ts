@@ -102,6 +102,89 @@ export function ptyResize(cols: number, rows: number): Promise<void> {
 	return invoke("pty_resize", { cols, rows });
 }
 
+// ── Diff ────────────────────────────────────────────────────────────
+
+export interface DiffFile {
+	path: string;
+	old_path: string | null;
+	status: string; // "M", "A", "D", "R", "?"
+	insertions: number;
+	deletions: number;
+}
+
+export interface SessionDiff {
+	staged_files: DiffFile[];
+	unstaged_files: DiffFile[];
+	untracked_files: DiffFile[];
+	staged_diff: string;
+	unstaged_diff: string;
+	untracked_diff: string;
+}
+
+export function getSessionDiff(sessionName: string): Promise<SessionDiff> {
+	return invoke<SessionDiff>("get_session_diff", { sessionName });
+}
+
+export function gitStageFile(sessionName: string, path: string): Promise<void> {
+	return invoke("git_stage_file", { sessionName, path });
+}
+
+export function gitUnstageFile(
+	sessionName: string,
+	path: string,
+): Promise<void> {
+	return invoke("git_unstage_file", { sessionName, path });
+}
+
+export function gitDiscardFile(
+	sessionName: string,
+	path: string,
+): Promise<void> {
+	return invoke("git_discard_file", { sessionName, path });
+}
+
+export function gitStageLines(
+	sessionName: string,
+	path: string,
+	hunkIndex: number,
+	lineIndices: number[],
+): Promise<void> {
+	return invoke("git_stage_lines", {
+		sessionName,
+		path,
+		hunkIndex,
+		lineIndices,
+	});
+}
+
+export function gitUnstageLines(
+	sessionName: string,
+	path: string,
+	hunkIndex: number,
+	lineIndices: number[],
+): Promise<void> {
+	return invoke("git_unstage_lines", {
+		sessionName,
+		path,
+		hunkIndex,
+		lineIndices,
+	});
+}
+
+export function gitDiscardLines(
+	sessionName: string,
+	path: string,
+	hunkIndex: number,
+	lineIndices: number[],
+): Promise<void> {
+	return invoke("git_discard_lines", {
+		sessionName,
+		path,
+		hunkIndex,
+		lineIndices,
+	});
+}
+
 // ── Hooks ───────────────────────────────────────────────────────────
 
 export function ensureHooks(): Promise<void> {

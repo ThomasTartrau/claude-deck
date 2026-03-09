@@ -15,6 +15,7 @@ import { Header } from "@/components/Header";
 import { SessionsTable } from "@/components/SessionsTable";
 import { DetailPanel } from "@/components/DetailPanel";
 import { TerminalPane } from "@/components/TerminalPane";
+import { DiffView } from "@/components/DiffView";
 import { FilterBar } from "@/components/FilterBar";
 import { LaunchDialog } from "@/components/LaunchDialog";
 import { SendDialog } from "@/components/SendDialog";
@@ -44,6 +45,9 @@ function App() {
 	const [terminalSession, setTerminalSession] = useState<string | null>(null);
 	const [killConfirmOpen, setKillConfirmOpen] = useState(false);
 	const [killTarget, setKillTarget] = useState<Session | null>(null);
+	const [rightPanelView, setRightPanelView] = useState<"terminal" | "diff">(
+		"terminal",
+	);
 
 	// Filter state
 	const [searchText, setSearchText] = useState("");
@@ -126,6 +130,8 @@ function App() {
 		handleSendPrompt,
 		requestKill,
 		handleRename,
+		toggleDiffView: () =>
+			setRightPanelView((v) => (v === "terminal" ? "diff" : "terminal")),
 	});
 
 	function confirmKill() {
@@ -210,8 +216,36 @@ function App() {
 							/>
 						</div>
 
-						{/* Terminal */}
-						<div className="flex-1 overflow-hidden">
+						{/* View toggle */}
+						{selectedSession && (
+							<div className="flex shrink-0 border-b border-border/30 bg-black/50">
+								<button
+									onClick={() => setRightPanelView("terminal")}
+									className={`px-3 py-1 text-[10px] font-medium tracking-wider uppercase transition-colors ${
+										rightPanelView === "terminal"
+											? "text-green-400 border-b-2 border-green-400"
+											: "text-muted-foreground hover:text-foreground"
+									}`}
+								>
+									Terminal
+								</button>
+								<button
+									onClick={() => setRightPanelView("diff")}
+									className={`px-3 py-1 text-[10px] font-medium tracking-wider uppercase transition-colors ${
+										rightPanelView === "diff"
+											? "text-yellow-400 border-b-2 border-yellow-400"
+											: "text-muted-foreground hover:text-foreground"
+									}`}
+								>
+									Diff
+								</button>
+							</div>
+						)}
+
+						{/* Terminal / Diff — both stay mounted, hidden via CSS */}
+						<div
+							className={`flex-1 overflow-hidden ${rightPanelView !== "terminal" ? "hidden" : ""}`}
+						>
 							<TerminalPane
 								sessionName={terminalSession}
 								fullscreen={terminalFullscreen}
@@ -223,6 +257,22 @@ function App() {
 										setTerminalFullscreen(true);
 									}
 								}}
+								onToggleDiff={() => setRightPanelView("diff")}
+							/>
+						</div>
+						<div
+							className={`flex-1 overflow-hidden ${rightPanelView !== "diff" ? "hidden" : ""}`}
+						>
+							<DiffView
+								sessionName={terminalSession}
+								visible={rightPanelView === "diff"}
+								fullscreen={terminalFullscreen}
+								onToggleFullscreen={() => {
+									if (terminalFullscreen) {
+										setTerminalFullscreen(false);
+									}
+								}}
+								onToggleDiff={() => setRightPanelView("terminal")}
 							/>
 						</div>
 					</div>
@@ -289,6 +339,12 @@ function App() {
 								{modKey}K
 							</kbd>{" "}
 							Kill
+						</span>
+						<span>
+							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">
+								{modKey}D
+							</kbd>{" "}
+							{rightPanelView === "diff" ? "Terminal" : "Diff"}
 						</span>
 						<span>
 							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">

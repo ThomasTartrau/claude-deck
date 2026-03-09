@@ -13,6 +13,7 @@ interface TerminalPaneProps {
 	sessionName: string | null;
 	fullscreen?: boolean;
 	onToggleFullscreen?: () => void;
+	onToggleDiff?: () => void;
 }
 
 const TERM_FONT_FAMILY =
@@ -37,6 +38,7 @@ export function TerminalPane({
 	sessionName,
 	fullscreen,
 	onToggleFullscreen,
+	onToggleDiff,
 }: TerminalPaneProps) {
 	const fontReady = useFontReady(TERM_FONT_FAMILY);
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -238,20 +240,30 @@ export function TerminalPane({
 						{sessionName ? `Terminal — ${sessionName}` : "Terminal"}
 					</span>
 				</div>
-				{onToggleFullscreen && sessionName && (
-					<button
-						onClick={onToggleFullscreen}
-						className={`text-[10px] transition-colors px-2 py-0.5 rounded ${
-							fullscreen
-								? "text-foreground bg-white/10 hover:bg-white/20"
-								: "text-muted-foreground hover:text-foreground hover:bg-white/5"
-						}`}
-					>
-						{fullscreen
-							? `${modKey}F Exit fullscreen`
-							: `${modKey}F Fullscreen`}
-					</button>
-				)}
+				<div className="flex items-center gap-1">
+					{onToggleDiff && sessionName && (
+						<button
+							onClick={onToggleDiff}
+							className="text-[10px] transition-colors px-2 py-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-white/5"
+						>
+							{modKey}D Diff
+						</button>
+					)}
+					{onToggleFullscreen && sessionName && (
+						<button
+							onClick={onToggleFullscreen}
+							className={`text-[10px] transition-colors px-2 py-0.5 rounded ${
+								fullscreen
+									? "text-foreground bg-white/10 hover:bg-white/20"
+									: "text-muted-foreground hover:text-foreground hover:bg-white/5"
+							}`}
+						>
+							{fullscreen
+								? `${modKey}F Exit fullscreen`
+								: `${modKey}F Fullscreen`}
+						</button>
+					)}
+				</div>
 			</div>
 			<div ref={containerRef} className="flex-1" />
 		</div>
