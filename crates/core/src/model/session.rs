@@ -156,4 +156,33 @@ mod tests {
         assert_eq!(SessionStatus::Idle.label(), "Idle");
         assert_eq!(SessionStatus::Dead.label(), "Dead");
     }
+
+    #[test]
+    fn git_status_only_insertions_no_deletions() {
+        let s = make_session(4, 25, 0, 0, 0);
+        assert_eq!(s.git_status_display(), "~4 +25");
+    }
+
+    #[test]
+    fn git_status_only_behind_no_ahead() {
+        let s = make_session(0, 0, 0, 0, 5);
+        assert_eq!(s.git_status_display(), "\u{2193}5");
+    }
+
+    #[test]
+    fn git_status_all_fields_populated() {
+        let s = make_session(2, 10, 3, 4, 1);
+        assert_eq!(s.git_status_display(), "~2 +10 -3 \u{2191}4 \u{2193}1");
+    }
+
+    #[test]
+    fn session_status_equality() {
+        assert_eq!(SessionStatus::Running, SessionStatus::Running);
+        assert_eq!(SessionStatus::Waiting, SessionStatus::Waiting);
+        assert_eq!(SessionStatus::Idle, SessionStatus::Idle);
+        assert_eq!(SessionStatus::Dead, SessionStatus::Dead);
+        assert_ne!(SessionStatus::Running, SessionStatus::Waiting);
+        assert_ne!(SessionStatus::Idle, SessionStatus::Dead);
+        assert_ne!(SessionStatus::Running, SessionStatus::Idle);
+    }
 }

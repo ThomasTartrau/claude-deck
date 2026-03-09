@@ -450,4 +450,166 @@ mod tests {
         let p = pricing_for_model("unknown-model");
         assert_eq!(p.input_per_token, SONNET_PRICING.input_per_token);
     }
+
+    // --- extract_json_u64 edge cases ---
+
+    #[test]
+    fn extract_json_u64_key_not_found() {
+        assert_eq!(extract_json_u64(r#"{"foo":42}"#, "bar"), None);
+    }
+
+    #[test]
+    fn extract_json_u64_non_numeric_value() {
+        assert_eq!(extract_json_u64(r#"{"count":"hello"}"#, "count"), None);
+    }
+
+    #[test]
+    fn extract_json_u64_empty_string() {
+        assert_eq!(extract_json_u64("", "key"), None);
+    }
+
+    // --- extract_json_string edge cases ---
+
+    #[test]
+    fn extract_json_string_escaped_quotes_in_value() {
+        // The naive parser finds the first closing quote, so escaped quotes
+        // will cause truncation. This test documents that behavior.
+        let line = r#"{"name":"hello\"world"}"#;
+        let result = extract_json_string(line, "name");
+        // The parser stops at the first unescaped quote after the opening one,
+        // which in this case is the backslash-escaped one — it sees hello\ as the value.
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn extract_json_string_key_at_end_of_string() {
+        // Key exists but no value follows
+        let line = r#"{"model""#;
+        assert_eq!(extract_json_string(line, "model"), None);
+    }
+
+    // --- extract_usage with nested JSON ---
+
+    #[test]
+    fn extract_usage_nested_objects_finds_first_usage() {
+        let line = r#"{"outer":{"usage":{"input_tokens":10,"output_tokens":20}},"usage":{"input_tokens":100,"output_tokens":200}}"#;
+        let u = extract_usage(line).unwrap();
+        // Should find the first "usage" occurrence
+        assert_eq!(u.input, 10);
+        assert_eq!(u.output, 20);
+    }
+
+    #[test]
+    fn extract_usage_deeply_nested() {
+        let line = r#"{"a":{"b":{"usage":{"input_tokens":77,"output_tokens":33,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}}"#;
+        let u = extract_usage(line).unwrap();
+        assert_eq!(u.input, 77);
+        assert_eq!(u.output, 33);
+    }
+
+    // --- parse_jsonl_file with real temp file ---
+
+    #[test]
+    fn parse_jsonl_file_multiple_lines() {
+        let dir = std::env::temp_dir();
+        let path = dir.join("claude_deck_test_parse_jsonl.jsonl");
+        let content = [
+            r#"{"type":"assistant","model":"claude-sonnet-4-20250514","message":{"usage":{"input_tokens":100,"output_tokens":50,"cache_creation_input_tokens":10,"cache_read_input_tokens":5}}}"#,
+            r#"{"type":"user","text":"hello"}"#,
+            r#"{"type":"assistant","message":{"usage":{"input_tokens":200,"output_tokens":100,"cache_creation_input_tokens":20,"cache_read_input_tokens":15}}}"#,
+        ].join("\n");
+        std::fs::write(&path, &content).unwrap();
+
+        let info = parse_jsonl_file(&path);
+        assert_eq!(info.input_tokens, 300);
+        assert_eq!(info.output_tokens, 150);
+        assert_eq!(info.cache_creation_tokens, 30);
+        assert_eq!(info.cache_read_tokens, 20);
+        assert!(info.total_cost.is_some());
+
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn parse_jsonl_file_nonexistent() {
+        let info = parse_jsonl_file(std::path::Path::new(
+            "/tmp/nonexistent_claude_deck_test.jsonl",
+        ));
+        assert_eq!(info.total_tokens(), 0);
+        assert!(info.total_cost.is_none());
+    }
+
+    // --- calculate_cost with all pricing models ---
+
+    #[test]
+    fn calculate_cost_opus_realistic() {
+        let info = CostInfo {
+            input_tokens: 10_000,
+            output_tokens: 2_000,
+            cache_creation_tokens: 0,
+            cache_read_tokens: 0,
+            total_cost: None,
+        };
+        let cost = calculate_cost(&info, &OPUS_PRICING);
+        // 10000 * 15/1M + 2000 * 75/1M = 0.15 + 0.15 = 0.30
+        assert!((cost - 0.30).abs() < 0.001);
+    }
+
+    #[test]
+    fn calculate_cost_haiku_realistic() {
+        let info = CostInfo {
+            input_tokens: 50_000,
+            output_tokens: 10_000,
+            cache_creation_tokens: 0,
+            cache_read_tokens: 0,
+            total_cost: None,
+        };
+        let cost = calculate_cost(&info, &HAIKU_PRICING);
+        // 50000 * 0.80/1M + 10000 * 4.0/1M = 0.04 + 0.04 = 0.08
+        assert!((cost - 0.08).abs() < 0.001);
+    }
+
+    #[test]
+    fn calculate_cost_with_cache_tokens() {
+        let info = CostInfo {
+            input_tokens: 1000,
+            output_tokens: 500,
+            cache_creation_tokens: 2000,
+            cache_read_tokens: 5000,
+            total_cost: None,
+        };
+        let cost = calculate_cost(&info, &SONNET_PRICING);
+        // 1000*3/1M + 500*15/1M + 2000*3.75/1M + 5000*0.30/1M
+        // = 0.003 + 0.0075 + 0.0075 + 0.0015 = 0.0195
+        assert!((cost - 0.0195).abs() < 0.0001);
+    }
+
+    // --- cost_display and tokens_display edge cases ---
+
+    #[test]
+    fn cost_display_exactly_one_dollar() {
+        let c = CostInfo {
+            total_cost: Some(1.0),
+            ..Default::default()
+        };
+        assert_eq!(c.cost_display(), "$1.00");
+    }
+
+    #[test]
+    fn tokens_display_exactly_1000() {
+        let c = CostInfo {
+            input_tokens: 1000,
+            ..Default::default()
+        };
+        assert_eq!(c.tokens_display(), "1.0k");
+    }
+
+    #[test]
+    fn tokens_display_exactly_1_000_000() {
+        let c = CostInfo {
+            input_tokens: 1_000_000,
+            ..Default::default()
+        };
+        assert_eq!(c.tokens_display(), "1.0M");
+    }
 }

@@ -90,4 +90,58 @@ mod tests {
         assert!(!is_visually_empty("\x1b[31mhello\x1b[0m"));
         assert!(!is_visually_empty("text"));
     }
+
+    #[test]
+    fn strip_ansi_multiple_nested_sequences() {
+        // Bold + red + underline, then reset each
+        let input = "\x1b[1m\x1b[31m\x1b[4mbold red underline\x1b[24m\x1b[39m\x1b[0m plain";
+        assert_eq!(strip_ansi(input), "bold red underline plain");
+    }
+
+    #[test]
+    fn strip_ansi_cursor_movement_codes() {
+        // Clear screen (\x1b[2J) and cursor home (\x1b[H)
+        let input = "\x1b[2J\x1b[Hhello";
+        assert_eq!(strip_ansi(input), "hello");
+    }
+
+    #[test]
+    fn strip_ansi_cursor_positioning() {
+        // Move cursor to row 10, col 20
+        let input = "\x1b[10;20Htext here";
+        assert_eq!(strip_ansi(input), "text here");
+    }
+
+    #[test]
+    fn strip_ansi_osc_with_st_terminator() {
+        // OSC sequence terminated with ST (\x1b\\) instead of BEL (\x07)
+        let input = "\x1b]0;window title\x1b\\visible text";
+        assert_eq!(strip_ansi(input), "visible text");
+    }
+
+    #[test]
+    fn strip_ansi_osc_with_bel_and_st_mixed() {
+        let input = "\x1b]0;title1\x07middle\x1b]2;title2\x1b\\end";
+        assert_eq!(strip_ansi(input), "middleend");
+    }
+
+    #[test]
+    fn is_visually_empty_with_tabs() {
+        assert!(is_visually_empty("\t\t\t"));
+    }
+
+    #[test]
+    fn is_visually_empty_with_newlines() {
+        assert!(is_visually_empty("\n\n\n"));
+    }
+
+    #[test]
+    fn is_visually_empty_with_tabs_and_newlines_mixed() {
+        assert!(is_visually_empty("\t\n \t\n"));
+    }
+
+    #[test]
+    fn is_visually_empty_with_ansi_and_tabs() {
+        assert!(is_visually_empty("\x1b[31m\t\t\x1b[0m"));
+    }
 }
