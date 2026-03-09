@@ -30,13 +30,20 @@ import {
 import type { DiffFile, SessionDiff } from "@/lib/api";
 import { modKey } from "@/lib/utils";
 
-/** A review comment attached to a specific diff line */
+/** A single line referenced by a review comment */
+interface CommentLine {
+	line: number;
+	type: "add" | "del" | "context";
+	content: string;
+}
+
+/** A review comment attached to one or more diff lines */
 interface ReviewComment {
 	file: string;
-	line: number;
-	lineType: "add" | "del" | "context";
-	lineContent: string;
+	lines: CommentLine[];
 	text: string;
+	/** Key identifying where to render the comment (hunkIndex:lastLineIndex) */
+	anchorKey: string;
 }
 
 interface DiffViewProps {
@@ -313,6 +320,7 @@ function LineContextMenu({
 	onStage,
 	onUnstage,
 	onDiscard,
+	onComment,
 	onClose,
 }: {
 	x: number;
@@ -322,6 +330,7 @@ function LineContextMenu({
 	onStage?: () => void;
 	onUnstage?: () => void;
 	onDiscard?: () => void;
+	onComment: () => void;
 	onClose: () => void;
 }) {
 	const ref = useRef<HTMLDivElement>(null);
@@ -354,29 +363,47 @@ function LineContextMenu({
 			className="fixed z-50 min-w-[180px] rounded-md border border-border bg-popover p-1 shadow-md animate-in fade-in-0 zoom-in-95"
 			style={{ left: x, top: y }}
 		>
+			{/* Comment — always available */}
+			<button
+				onClick={() => {
+					onComment();
+					onClose();
+				}}
+				className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer"
+			>
+				<span className="text-purple-400 mr-2">◆</span>
+				Comment {label}
+			</button>
+
 			{section === "unstaged" && onStage && (
-				<button
-					onClick={() => {
-						onStage();
-						onClose();
-					}}
-					className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer"
-				>
-					<span className="text-green-400 mr-2">+</span>
-					Stage {label}
-				</button>
+				<>
+					<div className="my-1 h-px bg-border" />
+					<button
+						onClick={() => {
+							onStage();
+							onClose();
+						}}
+						className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer"
+					>
+						<span className="text-green-400 mr-2">+</span>
+						Stage {label}
+					</button>
+				</>
 			)}
 			{section === "staged" && onUnstage && (
-				<button
-					onClick={() => {
-						onUnstage();
-						onClose();
-					}}
-					className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer"
-				>
-					<span className="text-yellow-400 mr-2">−</span>
-					Unstage {label}
-				</button>
+				<>
+					<div className="my-1 h-px bg-border" />
+					<button
+						onClick={() => {
+							onUnstage();
+							onClose();
+						}}
+						className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer"
+					>
+						<span className="text-yellow-400 mr-2">−</span>
+						Unstage {label}
+					</button>
+				</>
 			)}
 			{section === "unstaged" && onDiscard && (
 				<>
@@ -401,12 +428,14 @@ function LineContextMenu({
 
 function InlineCommentEditor({
 	initialText,
+	lineCount,
 	isEdit,
 	onSubmit,
 	onCancel,
 	onDelete,
 }: {
 	initialText: string;
+	lineCount: number;
 	isEdit: boolean;
 	onSubmit: (text: string) => void;
 	onCancel: () => void;
@@ -425,8 +454,13 @@ function InlineCommentEditor({
 		}
 	}
 
+	const lineLabel = `${lineCount} line${lineCount !== 1 ? "s" : ""}`;
+
 	return (
-		<div className="flex flex-col ml-5 border-l-2 border-purple-500/60 bg-purple-500/10 px-3 py-2 gap-1.5">
+		<div className="flex flex-col border-l-2 border-purple-500/60 bg-purple-500/10 px-3 py-2 gap-1.5">
+			<span className="text-[9px] text-purple-400/70 font-medium">
+				{isEdit ? "Edit comment" : `Comment on ${lineLabel}`}
+			</span>
 			<textarea
 				ref={textareaRef}
 				className="w-full bg-black/40 border border-border/30 rounded px-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/50 resize-none focus:outline-none focus:border-purple-500/50"
@@ -519,8 +553,10 @@ function DiffContent({
 		y: number;
 	} | null>(null);
 
-	// Inline comment input state
-	const [commentingLine, setCommentingLine] = useState<string | null>(null);
+	// Inline comment input: anchorKey of the line after which to show editor
+	const [commentingAnchor, setCommentingAnchor] = useState<string | null>(null);
+	// Lines to be included in the comment being created
+	const [commentingLines, setCommentingLines] = useState<CommentLine[]>([]);
 
 	// Clear selection when file changes
 	const activeFilePath = activeFile ?? null;
@@ -529,7 +565,8 @@ function DiffContent({
 		setSelectedLines(new Set());
 		lastClickedRef.current = null;
 		setContextMenu(null);
-		setCommentingLine(null);
+		setCommentingAnchor(null);
+		setCommentingLines([]);
 	}, [activeFilePath]);
 
 	const isSelectable =
@@ -539,7 +576,7 @@ function DiffContent({
 		return `${hunkIndex}:${changeIndex}`;
 	}
 
-	function commentKey(hunkIndex: number, lineIndex: number): string {
+	function anchorKey(hunkIndex: number, lineIndex: number): string {
 		return `${hunkIndex}:${lineIndex}`;
 	}
 
@@ -549,8 +586,17 @@ function DiffContent({
 		changeIndex: number,
 		e: React.MouseEvent,
 	) {
-		if (!isSelectable) return;
 		e.preventDefault();
+
+		if (!isSelectable) {
+			// Even for non-selectable sections (untracked), allow commenting
+			// by selecting the single line
+			const key = lineKey(hunkIndex, changeIndex);
+			setSelectedLines(new Set([key]));
+			lastClickedRef.current = key;
+			setContextMenu({ x: e.clientX, y: e.clientY });
+			return;
+		}
 
 		const key = lineKey(hunkIndex, changeIndex);
 
@@ -588,7 +634,7 @@ function DiffContent({
 
 	/** Right-click on hunk header: select all lines in hunk, open menu */
 	function handleHunkContextMenu(hunkIndex: number, e: React.MouseEvent) {
-		if (!isSelectable || !file) return;
+		if (!file) return;
 		e.preventDefault();
 
 		const hunk = file.hunks[hunkIndex];
@@ -608,6 +654,49 @@ function DiffContent({
 			map.get(h)!.push(c);
 		}
 		return map;
+	}
+
+	/** Collect selected lines info and find anchor position */
+	function collectSelectedLines(): {
+		lines: CommentLine[];
+		anchor: string;
+	} | null {
+		if (!file || selectedLines.size === 0) return null;
+
+		const collected: CommentLine[] = [];
+		let lastHi = 0;
+		let lastLi = 0;
+
+		for (const hunk of file.hunks) {
+			const hi = file.hunks.indexOf(hunk);
+			for (let li = 0; li < hunk.lines.length; li++) {
+				const line = hunk.lines[li];
+				if (
+					line.changeIndex !== undefined &&
+					selectedLines.has(lineKey(hi, line.changeIndex))
+				) {
+					const lineNum =
+						line.type === "del" ? line.oldLine : line.newLine;
+					collected.push({
+						line: lineNum ?? 0,
+						type: line.type as "add" | "del" | "context",
+						content: line.content,
+					});
+					lastHi = hi;
+					lastLi = li;
+				}
+			}
+		}
+
+		if (collected.length === 0) return null;
+		return { lines: collected, anchor: anchorKey(lastHi, lastLi) };
+	}
+
+	function handleCommentSelected() {
+		const result = collectSelectedLines();
+		if (!result) return;
+		setCommentingAnchor(result.anchor);
+		setCommentingLines(result.lines);
 	}
 
 	function handleStageSelected() {
@@ -672,10 +761,8 @@ function DiffContent({
 							{/* Hunk header */}
 							{/* biome-ignore lint/a11y/noStaticElementInteractions: context menu on hunk header */}
 							<div
-								className={`bg-blue-500/10 text-blue-400 px-4 py-1 border-y border-border/20 sticky top-0 z-10 ${isSelectable ? "cursor-context-menu" : ""}`}
-								onContextMenu={
-									isSelectable ? (e) => handleHunkContextMenu(hi, e) : undefined
-								}
+								className="bg-blue-500/10 text-blue-400 px-4 py-1 border-y border-border/20 sticky top-0 z-10 cursor-context-menu"
+								onContextMenu={(e) => handleHunkContextMenu(hi, e)}
 							>
 								{hunk.header}
 							</div>
@@ -705,53 +792,49 @@ function DiffContent({
 								const prefix =
 									line.type === "add" ? "+" : line.type === "del" ? "-" : " ";
 
-								const ck = commentKey(hi, li);
-								const lineNum =
-									line.type === "del" ? line.oldLine : line.newLine;
-								const existingIdx = activeFile
-									? comments.findIndex(
-											(c) =>
-												c.file === activeFile &&
-												c.line === lineNum &&
-												c.lineType === line.type,
-										)
-									: -1;
+								const ak = anchorKey(hi, li);
+								// Find existing comment anchored at this line
+								const existingIdx = comments.findIndex(
+									(c) => c.file === activeFile && c.anchorKey === ak,
+								);
 
 								return (
 									<div key={`${hi}-${li}`}>
 										{/* biome-ignore lint/a11y/noStaticElementInteractions: context menu on diff line */}
 										<div
-											className={`group flex ${bgClass} ${isChange && isSelectable ? "cursor-context-menu" : ""} hover:brightness-125 transition-colors`}
+											className={`group flex ${bgClass} ${isChange ? "cursor-context-menu" : ""} hover:brightness-125 transition-colors`}
 											onContextMenu={
-												isChange && isSelectable
+												isChange
 													? (e) =>
-															handleLineContextMenu(hi, line.changeIndex!, e)
+															handleLineContextMenu(
+																hi,
+																line.changeIndex!,
+																e,
+															)
 													: undefined
 											}
 										>
-											{/* Comment button */}
+											{/* Comment indicator */}
 											<span className="w-5 shrink-0 flex items-center justify-center select-none">
-												{existingIdx >= 0 ? (
+												{existingIdx >= 0 && (
 													<button
 														type="button"
 														className="text-[10px] text-purple-400 hover:text-purple-300"
 														onClick={() => {
-															setCommentingLine(
-																commentingLine === ck ? null : ck,
+															setCommentingAnchor(
+																commentingAnchor === ak
+																	? null
+																	: ak,
 															);
+															if (commentingAnchor !== ak) {
+																setCommentingLines(
+																	comments[existingIdx].lines,
+																);
+															}
 														}}
 														title="Edit comment"
 													>
 														◆
-													</button>
-												) : (
-													<button
-														type="button"
-														className="text-[10px] text-transparent group-hover:text-muted-foreground/40 hover:!text-purple-400 transition-colors"
-														onClick={() => setCommentingLine(ck)}
-														title="Add comment"
-													>
-														+
 													</button>
 												)}
 											</span>
@@ -784,23 +867,38 @@ function DiffContent({
 										</div>
 
 										{/* Existing comment display */}
-										{existingIdx >= 0 && commentingLine !== ck && (
-											<div className="flex ml-5 border-l-2 border-purple-500/40 bg-purple-500/5 px-3 py-1.5">
-												<span className="flex-1 text-xs text-purple-200 whitespace-pre-wrap">
-													{comments[existingIdx].text}
-												</span>
+										{existingIdx >= 0 && commentingAnchor !== ak && (
+											<div className="flex border-l-2 border-purple-500/40 bg-purple-500/5 px-3 py-1.5">
+												<div className="flex-1">
+													{comments[existingIdx].lines.length > 1 && (
+														<span className="text-[9px] text-purple-400/60 block mb-0.5">
+															{comments[existingIdx].lines.length}{" "}
+															lines
+														</span>
+													)}
+													<span className="text-xs text-purple-200 whitespace-pre-wrap">
+														{comments[existingIdx].text}
+													</span>
+												</div>
 												<div className="flex items-start gap-1 ml-2 shrink-0">
 													<button
 														type="button"
 														className="text-[10px] text-muted-foreground hover:text-purple-400 px-1"
-														onClick={() => setCommentingLine(ck)}
+														onClick={() => {
+															setCommentingAnchor(ak);
+															setCommentingLines(
+																comments[existingIdx].lines,
+															);
+														}}
 													>
 														Edit
 													</button>
 													<button
 														type="button"
 														className="text-[10px] text-muted-foreground hover:text-red-400 px-1"
-														onClick={() => onDeleteComment(existingIdx)}
+														onClick={() =>
+															onDeleteComment(existingIdx)
+														}
 													>
 														Delete
 													</button>
@@ -809,11 +907,14 @@ function DiffContent({
 										)}
 
 										{/* Comment input */}
-										{commentingLine === ck && (
+										{commentingAnchor === ak && (
 											<InlineCommentEditor
 												initialText={
-													existingIdx >= 0 ? comments[existingIdx].text : ""
+													existingIdx >= 0
+														? comments[existingIdx].text
+														: ""
 												}
+												lineCount={commentingLines.length}
 												isEdit={existingIdx >= 0}
 												onSubmit={(t) => {
 													if (existingIdx >= 0) {
@@ -821,20 +922,25 @@ function DiffContent({
 													} else {
 														onAddComment({
 															file: file.path,
-															line: lineNum ?? 0,
-															lineType: line.type as "add" | "del" | "context",
-															lineContent: line.content,
+															lines: commentingLines,
 															text: t,
+															anchorKey: ak,
 														});
 													}
-													setCommentingLine(null);
+													setCommentingAnchor(null);
+													setCommentingLines([]);
+													setSelectedLines(new Set());
 												}}
-												onCancel={() => setCommentingLine(null)}
+												onCancel={() => {
+													setCommentingAnchor(null);
+													setCommentingLines([]);
+												}}
 												onDelete={
 													existingIdx >= 0
 														? () => {
 																onDeleteComment(existingIdx);
-																setCommentingLine(null);
+																setCommentingAnchor(null);
+																setCommentingLines([]);
 															}
 														: undefined
 												}
@@ -855,9 +961,10 @@ function DiffContent({
 					y={contextMenu.y}
 					count={selectedLines.size}
 					section={activeSection}
-					onStage={handleStageSelected}
-					onUnstage={handleUnstageSelected}
-					onDiscard={handleRequestDiscardSelected}
+					onStage={isSelectable ? handleStageSelected : undefined}
+					onUnstage={isSelectable ? handleUnstageSelected : undefined}
+					onDiscard={isSelectable ? handleRequestDiscardSelected : undefined}
+					onComment={handleCommentSelected}
 					onClose={() => setContextMenu(null)}
 				/>
 			)}
@@ -881,13 +988,28 @@ function formatReviewPrompt(comments: ReviewComment[]): string {
 
 	for (const [filePath, fileComments] of byFile) {
 		parts.push(`## ${filePath}\n`);
-		const sorted = [...fileComments].sort((a, b) => a.line - b.line);
+		const sorted = [...fileComments].sort(
+			(a, b) => a.lines[0].line - b.lines[0].line,
+		);
 		for (const c of sorted) {
-			const prefix =
-				c.lineType === "add" ? "+" : c.lineType === "del" ? "-" : " ";
-			parts.push(
-				`Line ${c.line} (${prefix}): \`${c.lineContent.trim()}\`\n> ${c.text}\n`,
-			);
+			if (c.lines.length === 1) {
+				const l = c.lines[0];
+				const prefix =
+					l.type === "add" ? "+" : l.type === "del" ? "-" : " ";
+				parts.push(
+					`Line ${l.line} (${prefix}): \`${l.content.trim()}\`\n> ${c.text}\n`,
+				);
+			} else {
+				const first = c.lines[0].line;
+				const last = c.lines[c.lines.length - 1].line;
+				parts.push(`Lines ${first}-${last}:\n\`\`\``);
+				for (const l of c.lines) {
+					const prefix =
+						l.type === "add" ? "+" : l.type === "del" ? "-" : " ";
+					parts.push(`${prefix} ${l.content}`);
+				}
+				parts.push(`\`\`\`\n> ${c.text}\n`);
+			}
 		}
 	}
 
@@ -1265,7 +1387,9 @@ export function DiffView({
 							key={`unstaged-${file.path}`}
 							file={file}
 							section="unstaged"
-							active={activeFile === file.path && activeSection === "unstaged"}
+							active={
+								activeFile === file.path && activeSection === "unstaged"
+							}
 							onClick={() => {
 								setActiveFile(file.path);
 								setActiveSection("unstaged");
@@ -1297,7 +1421,9 @@ export function DiffView({
 							key={`untracked-${file.path}`}
 							file={file}
 							section="untracked"
-							active={activeFile === file.path && activeSection === "untracked"}
+							active={
+								activeFile === file.path && activeSection === "untracked"
+							}
 							onClick={() => {
 								setActiveFile(file.path);
 								setActiveSection("untracked");
