@@ -18,6 +18,7 @@ interface UseKeyboardShortcutsOptions {
 	handleSendPrompt: (session: Session) => void;
 	requestKill: (session: Session) => void;
 	handleRename: (session: Session) => void;
+	toggleDiffView: () => void;
 }
 
 export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
@@ -37,6 +38,7 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
 		handleSendPrompt,
 		requestKill,
 		handleRename,
+		toggleDiffView,
 	} = options;
 
 	const handleKeyDown = useCallback(
@@ -99,6 +101,12 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
 						handleRename(selectedSession);
 					}
 					break;
+				case "d":
+					if (selectedSession) {
+						e.preventDefault();
+						toggleDiffView();
+					}
+					break;
 				case "Enter":
 					if (selectedSession) {
 						e.preventDefault();
@@ -143,6 +151,7 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
 			setTagPickerOpen,
 			setWorkspacePickerOpen,
 			setQuickActionOpen,
+			toggleDiffView,
 		],
 	);
 
