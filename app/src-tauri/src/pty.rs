@@ -59,8 +59,10 @@ pub fn open(app_handle: AppHandle, session_name: &str, cols: u16, rows: u16) -> 
         .map_err(|e| format!("Failed to open PTY: {}", e))?;
 
     let mut cmd = CommandBuilder::new("tmux");
-    cmd.args(["attach-session", "-t", session_name]);
+    cmd.args(["-u", "attach-session", "-t", session_name]);
     cmd.env("TERM", "xterm-256color");
+    cmd.env("LANG", "en_US.UTF-8");
+    cmd.env("LC_CTYPE", "en_US.UTF-8");
 
     let child = pair
         .slave

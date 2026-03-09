@@ -4,6 +4,8 @@ use anyhow::{Context, Result};
 
 pub fn run_tmux(args: &[&str]) -> Result<String> {
     let output = Command::new("tmux")
+        .env("LANG", "en_US.UTF-8")
+        .env("LC_CTYPE", "en_US.UTF-8")
         .args(args)
         .output()
         .context("Failed to execute tmux command")?;
@@ -18,6 +20,8 @@ pub fn run_tmux(args: &[&str]) -> Result<String> {
 
 pub fn run_tmux_allow_failure(args: &[&str]) -> Option<String> {
     Command::new("tmux")
+        .env("LANG", "en_US.UTF-8")
+        .env("LC_CTYPE", "en_US.UTF-8")
         .args(args)
         .output()
         .ok()
@@ -56,7 +60,9 @@ pub fn capture_pane(session_name: &str, lines: i32) -> Option<String> {
 
 pub fn attach_session(name: &str) -> Result<std::process::ExitStatus> {
     Command::new("tmux")
-        .args(["attach-session", "-t", name])
+        .env("LANG", "en_US.UTF-8")
+        .env("LC_CTYPE", "en_US.UTF-8")
+        .args(["-u", "attach-session", "-t", name])
         .stdin(std::process::Stdio::inherit())
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit())

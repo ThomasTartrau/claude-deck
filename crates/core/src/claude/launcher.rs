@@ -59,8 +59,13 @@ fn create_tmux_session(session_name: &str, cwd: &str, shell_cmd: &str) -> Result
     // Use a login shell so the user's PATH (with claude, git, etc.) is loaded.
     // GUI apps on macOS don't inherit shell PATH, so `sh -c` would miss binaries.
     let wrapped = format!("exec bash -lc {}", shell_escape(shell_cmd));
+    // Force UTF-8 so tmux renders Unicode characters correctly.
+    // GUI apps (Tauri / Homebrew) don't inherit the shell's LANG.
     let output = Command::new("tmux")
+        .env("LANG", "en_US.UTF-8")
+        .env("LC_CTYPE", "en_US.UTF-8")
         .args([
+            "-u",
             "new-session",
             "-d",
             "-s",
