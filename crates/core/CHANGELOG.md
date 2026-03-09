@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0](https://github.com/ThomasTartrau/claude-deck/compare/core-v0.1.6...core-v0.2.0) - 2026-03-09
+
+### Added
+
+- workspace tabs, multi-select, bulk actions, and UX improvements
+
 ## [0.1.6](https://github.com/ThomasTartrau/claude-deck/compare/core-v0.1.5...core-v0.1.6) - 2026-03-09
 
 ### Other

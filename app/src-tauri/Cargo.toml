@@ -25,5 +25,5 @@ tauri = { version = "2.10.3", features = [] }
 tauri-plugin-log = "2"
 dirs = "6"
 portable-pty = "0.9"
-claude-deck-core = { path = "../../crates/core", version = "0.1.6" }
+claude-deck-core = { path = "../../crates/core", version = "0.2.0" }
 regex = "1"
