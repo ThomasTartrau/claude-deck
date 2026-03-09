@@ -547,6 +547,13 @@ function DiffContent({
 	const [selectedLines, setSelectedLines] = useState<Set<string>>(new Set());
 	const lastClickedRef = useRef<string | null>(null);
 
+	// Drag selection state
+	const isDraggingRef = useRef(false);
+	const dragStartRef = useRef<{
+		hunkIndex: number;
+		changeIndex: number;
+	} | null>(null);
+
 	// Context menu state
 	const [contextMenu, setContextMenu] = useState<{
 		x: number;
@@ -569,6 +576,16 @@ function DiffContent({
 		setCommentingLines([]);
 	}, [activeFilePath]);
 
+	// End drag on mouseup anywhere
+	useEffect(() => {
+		function handleMouseUp() {
+			isDraggingRef.current = false;
+			dragStartRef.current = null;
+		}
+		window.addEventListener("mouseup", handleMouseUp);
+		return () => window.removeEventListener("mouseup", handleMouseUp);
+	}, []);
+
 	const isSelectable =
 		activeSection === "unstaged" || activeSection === "staged";
 
@@ -580,7 +597,59 @@ function DiffContent({
 		return `${hunkIndex}:${lineIndex}`;
 	}
 
-	/** Right-click on a change line: select it (or add to selection) then open menu */
+	/** Select range of lines between two change indices within a hunk */
+	function selectRange(
+		hunkIndex: number,
+		fromChange: number,
+		toChange: number,
+	) {
+		if (!file) return;
+		const hunk = file.hunks[hunkIndex];
+		const lo = Math.min(fromChange, toChange);
+		const hi = Math.max(fromChange, toChange);
+		const next = new Set<string>();
+		for (const cl of hunk.lines) {
+			if (
+				cl.changeIndex !== undefined &&
+				cl.changeIndex >= lo &&
+				cl.changeIndex <= hi
+			) {
+				next.add(lineKey(hunkIndex, cl.changeIndex));
+			}
+		}
+		setSelectedLines(next);
+	}
+
+	/** Mouse down on a change line — start drag selection */
+	function handleLineMouseDown(
+		hunkIndex: number,
+		changeIndex: number,
+		e: React.MouseEvent,
+	) {
+		// Only left-click starts drag
+		if (e.button !== 0) return;
+		// Don't start drag if clicking on a button or interactive element
+		if ((e.target as HTMLElement).closest("button")) return;
+
+		e.preventDefault();
+		isDraggingRef.current = true;
+		dragStartRef.current = { hunkIndex, changeIndex };
+
+		const key = lineKey(hunkIndex, changeIndex);
+		setSelectedLines(new Set([key]));
+		lastClickedRef.current = key;
+		setContextMenu(null);
+	}
+
+	/** Mouse enter on a change line during drag — extend selection */
+	function handleLineMouseEnter(hunkIndex: number, changeIndex: number) {
+		if (!isDraggingRef.current || !dragStartRef.current) return;
+		// Only extend within the same hunk
+		if (dragStartRef.current.hunkIndex !== hunkIndex) return;
+		selectRange(hunkIndex, dragStartRef.current.changeIndex, changeIndex);
+	}
+
+	/** Right-click on a change line: open context menu with current selection */
 	function handleLineContextMenu(
 		hunkIndex: number,
 		changeIndex: number,
@@ -588,45 +657,13 @@ function DiffContent({
 	) {
 		e.preventDefault();
 
-		if (!isSelectable) {
-			// Even for non-selectable sections (untracked), allow commenting
-			// by selecting the single line
-			const key = lineKey(hunkIndex, changeIndex);
-			setSelectedLines(new Set([key]));
-			lastClickedRef.current = key;
-			setContextMenu({ x: e.clientX, y: e.clientY });
-			return;
-		}
-
 		const key = lineKey(hunkIndex, changeIndex);
 
-		if (e.shiftKey && lastClickedRef.current) {
-			// Range selection
-			const [lastH, lastC] = lastClickedRef.current.split(":").map(Number);
-			if (lastH === hunkIndex && file) {
-				const hunk = file.hunks[hunkIndex];
-				const from = Math.min(lastC, changeIndex);
-				const to = Math.max(lastC, changeIndex);
-				setSelectedLines((prev) => {
-					const next = new Set(prev);
-					for (const cl of hunk.lines) {
-						if (
-							cl.changeIndex !== undefined &&
-							cl.changeIndex >= from &&
-							cl.changeIndex <= to
-						) {
-							next.add(lineKey(hunkIndex, cl.changeIndex));
-						}
-					}
-					return next;
-				});
-			}
-		} else if (selectedLines.has(key)) {
-			// Already selected — keep selection, just open menu
-		} else {
-			// Not selected — select only this line
+		if (!selectedLines.has(key)) {
+			// Right-clicked outside current selection — select only this line
 			setSelectedLines(new Set([key]));
 		}
+		// If already selected, keep entire selection
 
 		lastClickedRef.current = key;
 		setContextMenu({ x: e.clientX, y: e.clientY });
@@ -799,9 +836,19 @@ function DiffContent({
 
 								return (
 									<div key={`${hi}-${li}`}>
-										{/* biome-ignore lint/a11y/noStaticElementInteractions: context menu on diff line */}
+										{/* biome-ignore lint/a11y/noStaticElementInteractions: drag selection + context menu on diff line */}
 										<div
-											className={`group flex ${bgClass} ${isChange ? "cursor-context-menu" : ""} hover:brightness-125 transition-colors`}
+											className={`group flex ${bgClass} ${isChange ? "cursor-pointer select-none" : ""} hover:brightness-125 transition-colors`}
+											onMouseDown={
+												isChange
+													? (e) => handleLineMouseDown(hi, line.changeIndex!, e)
+													: undefined
+											}
+											onMouseEnter={
+												isChange
+													? () => handleLineMouseEnter(hi, line.changeIndex!)
+													: undefined
+											}
 											onContextMenu={
 												isChange
 													? (e) =>
@@ -830,15 +877,13 @@ function DiffContent({
 												)}
 											</span>
 											{/* Selection indicator */}
-											{isSelectable && (
-												<span className="w-4 shrink-0 flex items-center justify-center select-none text-[8px]">
-													{isSelected ? (
-														<span className="text-blue-400">●</span>
-													) : isChange ? (
-														<span className="text-muted-foreground/20">○</span>
-													) : null}
-												</span>
-											)}
+											<span className="w-4 shrink-0 flex items-center justify-center select-none text-[8px]">
+												{isSelected ? (
+													<span className="text-blue-400">●</span>
+												) : isChange ? (
+													<span className="text-muted-foreground/20">○</span>
+												) : null}
+											</span>
 											<span className="w-12 shrink-0 text-right pr-2 text-muted-foreground/40 select-none border-r border-border/10">
 												{line.type !== "add" ? line.oldLine : ""}
 											</span>
