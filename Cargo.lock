@@ -560,7 +560,7 @@ dependencies = [
 
 [[package]]
 name = "claude-deck-cli"
-version = "0.4.8"
+version = "0.4.9"
 dependencies = [
  "anyhow",
  "chrono",
@@ -577,7 +577,7 @@ dependencies = [
 
 [[package]]
 name = "claude-deck-core"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "anyhow",
  "chrono",
