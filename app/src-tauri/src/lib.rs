@@ -186,6 +186,64 @@ fn remove_workspace(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn update_workspace_color(path: String, color: Option<String>) -> Result<(), String> {
+    let mut config = Config::load();
+    config.update_workspace_color(&path, color);
+    config.save();
+    Ok(())
+}
+
+#[tauri::command]
+fn set_pinned_workspace(path: Option<String>) -> Result<(), String> {
+    let mut config = Config::load();
+    config.pinned_workspace = path;
+    config.save();
+    Ok(())
+}
+
+#[tauri::command]
+fn set_collapsed_groups(groups: Vec<String>) -> Result<(), String> {
+    let mut config = Config::load();
+    config.set_collapsed_groups(groups);
+    config.save();
+    Ok(())
+}
+
+#[tauri::command]
+fn suggest_workspace(session_path: String) -> Option<String> {
+    let config = Config::load();
+    let matches = config
+        .workspaces
+        .iter()
+        .any(|w| session_path.starts_with(&w.path));
+    if matches {
+        None
+    } else {
+        // Find the git root or parent directory
+        let path = std::path::Path::new(&session_path);
+        let out = std::process::Command::new("git")
+            .args(["rev-parse", "--show-toplevel"])
+            .current_dir(&session_path)
+            .output()
+            .ok();
+        if let Some(out) = out {
+            if out.status.success() {
+                let root = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                if !config.workspaces.iter().any(|w| w.path == root) {
+                    return Some(root);
+                }
+            }
+        }
+        // Fallback: suggest session_path itself if it's a reasonable directory
+        if path.is_dir() {
+            Some(session_path)
+        } else {
+            None
+        }
+    }
+}
+
+#[tauri::command]
 fn get_quick_actions() -> Vec<QuickAction> {
     let config = Config::load();
     config.quick_actions
@@ -686,6 +744,10 @@ pub fn run() {
             ensure_hooks,
             add_workspace,
             remove_workspace,
+            update_workspace_color,
+            set_pinned_workspace,
+            set_collapsed_groups,
+            suggest_workspace,
             get_quick_actions,
             save_quick_action,
             delete_quick_action,

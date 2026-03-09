@@ -7,7 +7,6 @@ import type { Session } from "@/types/session";
 interface HeaderProps {
 	sessions: Session[];
 	onNewSession: () => void;
-	onOpenWorkspaces?: () => void;
 }
 
 function StatusCount({
@@ -27,11 +26,7 @@ function StatusCount({
 	);
 }
 
-export function Header({
-	sessions,
-	onNewSession,
-	onOpenWorkspaces,
-}: HeaderProps) {
+export function Header({ sessions, onNewSession }: HeaderProps) {
 	const [version, setVersion] = useState("");
 	useEffect(() => {
 		getVersion()
@@ -79,16 +74,6 @@ export function Header({
 				</div>
 			</div>
 			<div className="flex items-center gap-2">
-				{onOpenWorkspaces && (
-					<Button
-						variant="ghost"
-						size="sm"
-						className="h-7 text-xs"
-						onClick={onOpenWorkspaces}
-					>
-						Workspaces
-					</Button>
-				)}
 				<Button
 					variant="default"
 					size="sm"
