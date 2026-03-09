@@ -675,8 +675,7 @@ function DiffContent({
 					line.changeIndex !== undefined &&
 					selectedLines.has(lineKey(hi, line.changeIndex))
 				) {
-					const lineNum =
-						line.type === "del" ? line.oldLine : line.newLine;
+					const lineNum = line.type === "del" ? line.oldLine : line.newLine;
 					collected.push({
 						line: lineNum ?? 0,
 						type: line.type as "add" | "del" | "context",
@@ -806,11 +805,7 @@ function DiffContent({
 											onContextMenu={
 												isChange
 													? (e) =>
-															handleLineContextMenu(
-																hi,
-																line.changeIndex!,
-																e,
-															)
+															handleLineContextMenu(hi, line.changeIndex!, e)
 													: undefined
 											}
 										>
@@ -822,14 +817,10 @@ function DiffContent({
 														className="text-[10px] text-purple-400 hover:text-purple-300"
 														onClick={() => {
 															setCommentingAnchor(
-																commentingAnchor === ak
-																	? null
-																	: ak,
+																commentingAnchor === ak ? null : ak,
 															);
 															if (commentingAnchor !== ak) {
-																setCommentingLines(
-																	comments[existingIdx].lines,
-																);
+																setCommentingLines(comments[existingIdx].lines);
 															}
 														}}
 														title="Edit comment"
@@ -872,8 +863,7 @@ function DiffContent({
 												<div className="flex-1">
 													{comments[existingIdx].lines.length > 1 && (
 														<span className="text-[9px] text-purple-400/60 block mb-0.5">
-															{comments[existingIdx].lines.length}{" "}
-															lines
+															{comments[existingIdx].lines.length} lines
 														</span>
 													)}
 													<span className="text-xs text-purple-200 whitespace-pre-wrap">
@@ -886,9 +876,7 @@ function DiffContent({
 														className="text-[10px] text-muted-foreground hover:text-purple-400 px-1"
 														onClick={() => {
 															setCommentingAnchor(ak);
-															setCommentingLines(
-																comments[existingIdx].lines,
-															);
+															setCommentingLines(comments[existingIdx].lines);
 														}}
 													>
 														Edit
@@ -896,9 +884,7 @@ function DiffContent({
 													<button
 														type="button"
 														className="text-[10px] text-muted-foreground hover:text-red-400 px-1"
-														onClick={() =>
-															onDeleteComment(existingIdx)
-														}
+														onClick={() => onDeleteComment(existingIdx)}
 													>
 														Delete
 													</button>
@@ -910,9 +896,7 @@ function DiffContent({
 										{commentingAnchor === ak && (
 											<InlineCommentEditor
 												initialText={
-													existingIdx >= 0
-														? comments[existingIdx].text
-														: ""
+													existingIdx >= 0 ? comments[existingIdx].text : ""
 												}
 												lineCount={commentingLines.length}
 												isEdit={existingIdx >= 0}
@@ -994,8 +978,7 @@ function formatReviewPrompt(comments: ReviewComment[]): string {
 		for (const c of sorted) {
 			if (c.lines.length === 1) {
 				const l = c.lines[0];
-				const prefix =
-					l.type === "add" ? "+" : l.type === "del" ? "-" : " ";
+				const prefix = l.type === "add" ? "+" : l.type === "del" ? "-" : " ";
 				parts.push(
 					`Line ${l.line} (${prefix}): \`${l.content.trim()}\`\n> ${c.text}\n`,
 				);
@@ -1004,8 +987,7 @@ function formatReviewPrompt(comments: ReviewComment[]): string {
 				const last = c.lines[c.lines.length - 1].line;
 				parts.push(`Lines ${first}-${last}:\n\`\`\``);
 				for (const l of c.lines) {
-					const prefix =
-						l.type === "add" ? "+" : l.type === "del" ? "-" : " ";
+					const prefix = l.type === "add" ? "+" : l.type === "del" ? "-" : " ";
 					parts.push(`${prefix} ${l.content}`);
 				}
 				parts.push(`\`\`\`\n> ${c.text}\n`);
@@ -1387,9 +1369,7 @@ export function DiffView({
 							key={`unstaged-${file.path}`}
 							file={file}
 							section="unstaged"
-							active={
-								activeFile === file.path && activeSection === "unstaged"
-							}
+							active={activeFile === file.path && activeSection === "unstaged"}
 							onClick={() => {
 								setActiveFile(file.path);
 								setActiveSection("unstaged");
@@ -1421,9 +1401,7 @@ export function DiffView({
 							key={`untracked-${file.path}`}
 							file={file}
 							section="untracked"
-							active={
-								activeFile === file.path && activeSection === "untracked"
-							}
+							active={activeFile === file.path && activeSection === "untracked"}
 							onClick={() => {
 								setActiveFile(file.path);
 								setActiveSection("untracked");
