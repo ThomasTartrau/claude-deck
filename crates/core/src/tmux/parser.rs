@@ -92,4 +92,35 @@ mod tests {
         let info = parse_session_line(line).unwrap();
         assert_eq!(info.pane_current_path.as_deref(), Some("/home/user"));
     }
+
+    #[test]
+    fn parse_pipe_characters_in_path() {
+        // The parser splits on '|', so a path with pipes would appear as extra fields.
+        // parts[3] would be "/home/user/a" and the rest ignored.
+        let line = "cc-test|1700000000|100|/home/user/a|b|c";
+        let info = parse_session_line(line).unwrap();
+        assert_eq!(info.name, "cc-test");
+        assert_eq!(info.pane_pid, Some(100));
+        // Only gets text up to the next pipe
+        assert_eq!(info.pane_current_path.as_deref(), Some("/home/user/a"));
+    }
+
+    #[test]
+    fn parse_unicode_characters_in_name() {
+        let line = "cc-\u{1f600}-proj\u{00e9}ct|1700000000|200|/tmp";
+        let info = parse_session_line(line).unwrap();
+        assert_eq!(info.name, "cc-\u{1f600}-proj\u{00e9}ct");
+        assert_eq!(info.pane_pid, Some(200));
+    }
+
+    #[test]
+    fn parse_very_large_epoch_value() {
+        // Year ~2286 epoch value
+        let line = "cc-future|9999999999|300|/home/future";
+        let info = parse_session_line(line).unwrap();
+        assert_eq!(info.name, "cc-future");
+        assert_eq!(info.pane_pid, Some(300));
+        assert_eq!(info.pane_current_path.as_deref(), Some("/home/future"));
+        // Should parse without panic; the created datetime is set
+    }
 }

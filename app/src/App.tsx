@@ -25,6 +25,7 @@ import { WorkspacePicker } from "@/components/WorkspacePicker";
 import { QuickActionList } from "@/components/QuickActionList";
 import { useSessionList } from "@/hooks/useSessionList";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { Toaster } from "@/components/ui/sonner";
 import { filterSessions } from "@/lib/filters";
 import { modKey } from "@/lib/utils";
 import type { Session } from "@/types/session";
@@ -427,6 +428,7 @@ function App() {
 					</AlertDialogContent>
 				</AlertDialog>
 			</div>
+			<Toaster position="bottom-right" />
 		</TooltipProvider>
 	);
 }

@@ -133,4 +133,46 @@ mod tests {
         assert_eq!(d.format_running(), "2m 5s");
         assert_eq!(d.format_waiting(), "45s");
     }
+
+    #[test]
+    fn format_duration_exactly_60_seconds() {
+        assert_eq!(format_duration(Duration::from_secs(60)), "1m 0s");
+    }
+
+    #[test]
+    fn format_duration_exactly_3600_seconds() {
+        assert_eq!(format_duration(Duration::from_secs(3600)), "1h 0m");
+    }
+
+    #[test]
+    fn format_duration_large_value_days_worth() {
+        // 2 days + 3 hours + 15 minutes = 172800 + 10800 + 900 = 184500 seconds
+        let d = Duration::from_secs(184500);
+        // 184500 / 3600 = 51h, (184500 % 3600) / 60 = 15m
+        assert_eq!(format_duration(d), "51h 15m");
+    }
+
+    #[test]
+    fn update_transition_running_to_waiting_accumulates() {
+        let mut d = SessionDurations::new();
+
+        // Start running
+        d.update(&SessionStatus::Running);
+        // Simulate 5 seconds of running
+        d.last_updated = Instant::now() - Duration::from_secs(5);
+
+        // Transition to waiting — should accumulate the 5s into running_duration
+        d.update(&SessionStatus::Waiting);
+        assert!(d.running_duration >= Duration::from_secs(4));
+        assert_eq!(d.waiting_duration, Duration::ZERO);
+
+        // Simulate 3 seconds of waiting
+        d.last_updated = Instant::now() - Duration::from_secs(3);
+
+        // Update again — should accumulate the 3s into waiting_duration
+        d.update(&SessionStatus::Running);
+        assert!(d.waiting_duration >= Duration::from_secs(2));
+        // running_duration should still have the previous accumulation
+        assert!(d.running_duration >= Duration::from_secs(4));
+    }
 }

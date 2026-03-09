@@ -333,4 +333,105 @@ mod tests {
         assert_eq!(parsed.sessions[0].name, "cc-app");
         assert_eq!(parsed.sessions[1].path, "/home/user/api");
     }
+
+    #[test]
+    fn config_with_quick_actions_roundtrip() {
+        let config = Config {
+            quick_actions: vec![
+                QuickAction {
+                    key: "r".into(),
+                    label: "Review".into(),
+                    prompt: "Please review this code".into(),
+                },
+                QuickAction {
+                    key: "t".into(),
+                    label: "Test".into(),
+                    prompt: "Write tests for this".into(),
+                },
+            ],
+            ..Default::default()
+        };
+
+        let toml_str = toml::to_string_pretty(&config).unwrap();
+        let parsed: Config = toml::from_str(&toml_str).unwrap();
+
+        assert_eq!(parsed.quick_actions.len(), 2);
+        assert_eq!(parsed.quick_actions[0].key, "r");
+        assert_eq!(parsed.quick_actions[0].label, "Review");
+        assert_eq!(parsed.quick_actions[0].prompt, "Please review this code");
+        assert_eq!(parsed.quick_actions[1].key, "t");
+    }
+
+    #[test]
+    fn all_tags_empty_tags_map_returns_empty() {
+        let config = Config::default();
+        assert!(config.all_tags().is_empty());
+    }
+
+    #[test]
+    fn add_workspace_then_remove_by_path() {
+        let mut config = Config::default();
+        config.add_workspace("project".into(), "/home/user/project".into());
+        assert_eq!(config.workspaces.len(), 1);
+
+        let removed = config.remove_workspace_by_path("/home/user/project");
+        assert!(removed);
+        assert!(config.workspaces.is_empty());
+    }
+
+    #[test]
+    fn config_deserialize_with_unknown_fields() {
+        let toml_str = r#"
+refresh_interval_secs = 3
+panel_ratio = 50
+unknown_field = "should be ignored"
+another_unknown = 42
+"#;
+        let config: Config = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.refresh_interval_secs, 3);
+        assert_eq!(config.panel_ratio, 50);
+    }
+
+    #[test]
+    fn save_and_load_sessions_with_temp_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let sessions_path = tmp.path().join("sessions.toml");
+
+        let sessions = vec![
+            SavedSession {
+                name: "s1".into(),
+                path: "/p1".into(),
+            },
+            SavedSession {
+                name: "s2".into(),
+                path: "/p2".into(),
+            },
+        ];
+
+        // Write using the same serialization format as save_sessions
+        #[derive(Serialize)]
+        struct Wrapper<'a> {
+            sessions: &'a [SavedSession],
+        }
+        let content = toml::to_string_pretty(&Wrapper {
+            sessions: &sessions,
+        })
+        .unwrap();
+        std::fs::write(&sessions_path, &content).unwrap();
+
+        // Read back using the same deserialization format as load_saved_sessions
+        let read_content = std::fs::read_to_string(&sessions_path).unwrap();
+        #[derive(Deserialize)]
+        struct WrapperOwned {
+            #[serde(default)]
+            sessions: Vec<SavedSession>,
+        }
+        let loaded: WrapperOwned = toml::from_str(&read_content).unwrap();
+
+        assert_eq!(loaded.sessions.len(), 2);
+        assert_eq!(loaded.sessions[0].name, "s1");
+        assert_eq!(loaded.sessions[0].path, "/p1");
+        assert_eq!(loaded.sessions[1].name, "s2");
+        assert_eq!(loaded.sessions[1].path, "/p2");
+    }
 }
