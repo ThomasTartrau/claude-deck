@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5](https://github.com/ThomasTartrau/claude-deck/compare/core-v0.1.4...core-v0.1.5) - 2026-03-09
+
+### Fixed
+
+- force UTF-8 locale on all tmux commands for correct Unicode rendering
+
 ## [0.1.4](https://github.com/ThomasTartrau/claude-deck/compare/core-v0.1.3...core-v0.1.4) - 2026-03-08
 
 ### Fixed
