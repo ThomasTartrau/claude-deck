@@ -188,47 +188,42 @@ function FileListItem({
 		? file.path.slice(0, file.path.lastIndexOf("/"))
 		: "";
 
-	const row = (
-		<button
-			type="button"
-			className={`w-full text-left px-3 py-1 flex items-center gap-2 text-xs transition-colors cursor-pointer ${
-				active
-					? "bg-accent text-accent-foreground"
-					: "hover:bg-accent/50 text-foreground"
-			}`}
-			onClick={onClick}
-		>
-			<span
-				className={`font-mono font-bold w-3 text-center shrink-0 ${statusColors[file.status] || "text-muted-foreground"}`}
-			>
-				{file.status}
-			</span>
-			<span className="truncate min-w-0 flex-1">
-				<span className="font-medium">{filename}</span>
-				{dir && <span className="text-muted-foreground ml-1">{dir}</span>}
-			</span>
-			<span className="flex gap-1 shrink-0 font-mono text-[10px]">
-				{(commentCount ?? 0) > 0 && (
-					<span
-						className="text-purple-400"
-						title={`${commentCount} comment${commentCount !== 1 ? "s" : ""}`}
-					>
-						◆{commentCount}
-					</span>
-				)}
-				{file.insertions > 0 && (
-					<span className="text-green-400">+{file.insertions}</span>
-				)}
-				{file.deletions > 0 && (
-					<span className="text-red-400">-{file.deletions}</span>
-				)}
-			</span>
-		</button>
-	);
-
 	return (
 		<ContextMenu>
-			<ContextMenuTrigger asChild>{row}</ContextMenuTrigger>
+			<ContextMenuTrigger
+				className={`w-full text-left px-3 py-1 flex items-center gap-2 text-xs transition-colors cursor-pointer ${
+					active
+						? "bg-accent text-accent-foreground"
+						: "hover:bg-accent/50 text-foreground"
+				}`}
+				onClick={onClick}
+			>
+				<span
+					className={`font-mono font-bold w-3 text-center shrink-0 ${statusColors[file.status] || "text-muted-foreground"}`}
+				>
+					{file.status}
+				</span>
+				<span className="truncate min-w-0 flex-1">
+					<span className="font-medium">{filename}</span>
+					{dir && <span className="text-muted-foreground ml-1">{dir}</span>}
+				</span>
+				<span className="flex gap-1 shrink-0 font-mono text-[10px]">
+					{(commentCount ?? 0) > 0 && (
+						<span
+							className="text-purple-400"
+							title={`${commentCount} comment${commentCount !== 1 ? "s" : ""}`}
+						>
+							◆{commentCount}
+						</span>
+					)}
+					{file.insertions > 0 && (
+						<span className="text-green-400">+{file.insertions}</span>
+					)}
+					{file.deletions > 0 && (
+						<span className="text-red-400">-{file.deletions}</span>
+					)}
+				</span>
+			</ContextMenuTrigger>
 			<ContextMenuContent>
 				{(section === "unstaged" || section === "untracked") && onStage && (
 					<ContextMenuItem onClick={onStage}>
