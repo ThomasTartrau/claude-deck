@@ -56,21 +56,38 @@ pub fn kill_session(session_name: &str) -> Result<()> {
 }
 
 fn create_tmux_session(session_name: &str, cwd: &str, shell_cmd: &str) -> Result<()> {
-    // Use the user's login shell so the full PATH (with psql, cargo, etc.) is loaded.
-    // GUI apps on macOS don't inherit shell PATH, so `sh -c` would miss binaries.
-    let login_shell = env::var("SHELL").unwrap_or_else(|_| "bash".to_string());
-    // Unset all CLAUDE* env vars at shell level inside tmux.
-    // We can't collect var names from the Rust process (the GUI app may not
-    // have them), and env_remove on Command only affects the tmux client, not
-    // the server where the shell runs. A shell loop catches vars from the
-    // tmux server's own environment regardless of the caller's env.
+    let login_shell = env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+    let log_file = format!("/tmp/claude-deck-{}.log", session_name);
+
+    // The shell command:
+    // 1. Logs the environment for debugging
+    // 2. Strips all CLAUDE* env vars (tmux server may have inherited them)
+    // 3. Launches the user's login shell with the claude command
+    // 4. On failure, logs the error and keeps the session alive briefly
     let wrapped = format!(
-        "for v in $(printenv | grep '^CLAUDE' | cut -d= -f1); do unset \"$v\"; done; exec {} -lc {}",
-        login_shell,
-        shell_escape(shell_cmd)
+        concat!(
+            "exec 2>>{log}; ",
+            "echo \"[$(date)] Starting session\" >>{log}; ",
+            "echo \"CLAUDE vars: $(printenv | grep CLAUDE || echo none)\" >>{log}; ",
+            "for v in $(printenv | grep '^CLAUDE' | cut -d= -f1); do unset \"$v\"; done; ",
+            "echo \"After unset: $(printenv | grep CLAUDE || echo none)\" >>{log}; ",
+            "echo \"Running: {shell} -lc {cmd}\" >>{log}; ",
+            "{shell} -lc {cmd}; ",
+            "RC=$?; echo \"[$(date)] Exited with code $RC\" >>{log}; sleep 5",
+        ),
+        log = shell_escape(&log_file),
+        shell = login_shell,
+        cmd = shell_escape(shell_cmd),
     );
-    // Force UTF-8 so tmux renders Unicode characters correctly.
-    // GUI apps (Tauri / Homebrew) don't inherit the shell's LANG.
+
+    log_session(
+        &log_file,
+        &format!(
+            "create_tmux_session: name={} cwd={} shell={}\nshell_cmd={}\nwrapped={}\n",
+            session_name, cwd, login_shell, shell_cmd, wrapped
+        ),
+    );
+
     let output = Command::new("tmux")
         .env("LANG", "en_US.UTF-8")
         .env("LC_CTYPE", "en_US.UTF-8")
@@ -93,6 +110,15 @@ fn create_tmux_session(session_name: &str, cwd: &str, shell_cmd: &str) -> Result
         .output()
         .context("Failed to create tmux session")?;
 
+    log_session(
+        &log_file,
+        &format!(
+            "tmux result: status={} stderr={}\n",
+            output.status,
+            String::from_utf8_lossy(&output.stderr),
+        ),
+    );
+
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         anyhow::bail!("tmux new-session failed: {}", stderr.trim());
@@ -104,6 +130,15 @@ fn create_tmux_session(session_name: &str, cwd: &str, shell_cmd: &str) -> Result
         .ok();
 
     Ok(())
+}
+
+fn log_session(path: &str, msg: &str) {
+    use std::io::Write;
+    let _ = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+        .and_then(|mut f| f.write_all(msg.as_bytes()));
 }
 
 pub fn prefixed_name(name: &str) -> String {
