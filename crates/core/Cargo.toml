@@ -1,6 +1,6 @@
 [package]
 name = "claude-deck-core"
-version = "0.2.4"
+version = "0.2.5"
 edition = "2021"
 description = "Shared core library for claude-deck CLI and GUI"
 license = "MIT"

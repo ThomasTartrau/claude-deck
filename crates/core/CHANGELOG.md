@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.5](https://github.com/ThomasTartrau/claude-deck/compare/core-v0.2.4...core-v0.2.5) - 2026-03-10
+
+### Fixed
+
+- detect and unset CLAUDE* vars at shell level inside tmux
+
+### Other
+
+- Merge pull request #54 from ThomasTartrau/fix/unset-claude-vars-at-shell-level
+
 ## [0.2.4](https://github.com/ThomasTartrau/claude-deck/compare/core-v0.2.3...core-v0.2.4) - 2026-03-10
 
 ### Fixed
