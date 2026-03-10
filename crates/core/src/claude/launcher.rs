@@ -59,21 +59,13 @@ fn create_tmux_session(session_name: &str, cwd: &str, shell_cmd: &str) -> Result
     // Use the user's login shell so the full PATH (with psql, cargo, etc.) is loaded.
     // GUI apps on macOS don't inherit shell PATH, so `sh -c` would miss binaries.
     let login_shell = env::var("SHELL").unwrap_or_else(|_| "bash".to_string());
-    // Collect all CLAUDE* env var names to unset inside the tmux shell command.
-    // env_remove on Command doesn't work here because tmux runs the command on
-    // its server process, which inherits the parent environment independently.
-    let claude_vars: Vec<String> = env::vars()
-        .filter(|(k, _)| k.starts_with("CLAUDE"))
-        .map(|(k, _)| k)
-        .collect();
-    let unset_prefix = if claude_vars.is_empty() {
-        String::new()
-    } else {
-        format!("unset {}; ", claude_vars.join(" "))
-    };
+    // Unset all CLAUDE* env vars at shell level inside tmux.
+    // We can't collect var names from the Rust process (the GUI app may not
+    // have them), and env_remove on Command only affects the tmux client, not
+    // the server where the shell runs. A shell loop catches vars from the
+    // tmux server's own environment regardless of the caller's env.
     let wrapped = format!(
-        "{}exec {} -lc {}",
-        unset_prefix,
+        "for v in $(printenv | grep '^CLAUDE' | cut -d= -f1); do unset \"$v\"; done; exec {} -lc {}",
         login_shell,
         shell_escape(shell_cmd)
     );
