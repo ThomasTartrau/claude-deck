@@ -56,9 +56,10 @@ pub fn kill_session(session_name: &str) -> Result<()> {
 }
 
 fn create_tmux_session(session_name: &str, cwd: &str, shell_cmd: &str) -> Result<()> {
-    // Use a login shell so the user's PATH (with claude, git, etc.) is loaded.
+    // Use the user's login shell so the full PATH (with psql, cargo, etc.) is loaded.
     // GUI apps on macOS don't inherit shell PATH, so `sh -c` would miss binaries.
-    let wrapped = format!("exec bash -lc {}", shell_escape(shell_cmd));
+    let login_shell = env::var("SHELL").unwrap_or_else(|_| "bash".to_string());
+    let wrapped = format!("exec {} -lc {}", login_shell, shell_escape(shell_cmd));
     // Force UTF-8 so tmux renders Unicode characters correctly.
     // GUI apps (Tauri / Homebrew) don't inherit the shell's LANG.
     let output = Command::new("tmux")
