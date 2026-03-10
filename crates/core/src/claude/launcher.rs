@@ -59,16 +59,21 @@ fn create_tmux_session(session_name: &str, cwd: &str, shell_cmd: &str) -> Result
     // Use the user's login shell so the full PATH (with psql, cargo, etc.) is loaded.
     // GUI apps on macOS don't inherit shell PATH, so `sh -c` would miss binaries.
     let login_shell = env::var("SHELL").unwrap_or_else(|_| "bash".to_string());
-    let wrapped = format!(
-        "unset CLAUDECODE CLAUDE_CODE_ENTRYPOINT; exec {} -lc {}",
-        login_shell,
-        shell_escape(shell_cmd)
-    );
+    let wrapped = format!("exec {} -lc {}", login_shell, shell_escape(shell_cmd));
     // Force UTF-8 so tmux renders Unicode characters correctly.
     // GUI apps (Tauri / Homebrew) don't inherit the shell's LANG.
-    let output = Command::new("tmux")
-        .env("LANG", "en_US.UTF-8")
-        .env("LC_CTYPE", "en_US.UTF-8")
+    let mut cmd = Command::new("tmux");
+    cmd.env("LANG", "en_US.UTF-8")
+        .env("LC_CTYPE", "en_US.UTF-8");
+    // Strip ALL Claude Code env vars so spawned sessions are never detected
+    // as nested instances. This is future-proof: any new CLAUDE* var Claude
+    // Code introduces will be automatically cleared.
+    for (key, _) in env::vars() {
+        if key.starts_with("CLAUDE") {
+            cmd.env_remove(&key);
+        }
+    }
+    let output = cmd
         .args([
             "-u",
             "new-session",
