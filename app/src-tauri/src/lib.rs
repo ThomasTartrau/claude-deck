@@ -287,13 +287,12 @@ fn open_terminal(path: String) -> Result<(), String> {
         return Err(format!("Not a directory: {}", canonical.display()));
     }
 
-    let canonical_str = canonical.to_string_lossy().to_string();
-
     if let Some(ref app) = config.terminal_app {
         #[cfg(target_os = "macos")]
         {
+            let path_str = canonical.to_string_lossy();
             std::process::Command::new("open")
-                .args(["-a", app, &canonical_str])
+                .args(["-a", app, path_str.as_ref()])
                 .spawn()
                 .map_err(|e| format!("Failed to open {}: {}", app, e))?;
         }
@@ -308,8 +307,9 @@ fn open_terminal(path: String) -> Result<(), String> {
     } else {
         #[cfg(target_os = "macos")]
         {
+            let path_str = canonical.to_string_lossy();
             std::process::Command::new("open")
-                .args(["-a", "Terminal", &canonical_str])
+                .args(["-a", "Terminal", path_str.as_ref()])
                 .spawn()
                 .map_err(|e| format!("Failed to open terminal: {}", e))?;
         }
