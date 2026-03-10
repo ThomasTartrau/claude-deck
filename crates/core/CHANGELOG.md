@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.6](https://github.com/ThomasTartrau/claude-deck/compare/core-v0.2.5...core-v0.2.6) - 2026-03-10
+
+### Added
+
+- add per-session debug logging to /tmp
+
 ## [0.2.5](https://github.com/ThomasTartrau/claude-deck/compare/core-v0.2.4...core-v0.2.5) - 2026-03-10
 
 ### Fixed
