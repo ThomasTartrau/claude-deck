@@ -207,6 +207,41 @@ export function gitDiscardLines(
 	});
 }
 
+// ── System ──────────────────────────────────────────────────────────
+
+export function openTerminal(path: string): Promise<void> {
+	return invoke("open_terminal", { path });
+}
+
+export function openInEditor(path: string): Promise<void> {
+	return invoke("open_in_editor", { path });
+}
+
+// ── Settings ────────────────────────────────────────────────────────
+
+export interface AppSettings {
+	claude_command: string;
+	claude_flags: string[];
+	use_worktree: boolean;
+	terminal_app: string | null;
+	editor_command: string | null;
+	shell: string | null;
+	tmux_columns: number;
+	tmux_rows: number;
+	tmux_history_limit: number;
+	refresh_interval_secs: number;
+	notifications: boolean;
+	keybindings: Record<string, string>;
+}
+
+export function getSettings(): Promise<AppSettings> {
+	return invoke<AppSettings>("get_settings");
+}
+
+export function updateSettings(settings: AppSettings): Promise<void> {
+	return invoke("update_settings", { settings });
+}
+
 // ── Hooks ───────────────────────────────────────────────────────────
 
 export function ensureHooks(): Promise<void> {

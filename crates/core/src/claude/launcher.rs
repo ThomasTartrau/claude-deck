@@ -4,15 +4,17 @@ use std::process::Command;
 use anyhow::{Context, Result};
 
 use super::hooks;
+use crate::config::Config;
 
 pub const SESSION_PREFIX: &str = "cc-";
 
 pub fn launch_claude_session(name: &str, prompt: Option<&str>, repo: Option<&str>) -> Result<()> {
+    let config = Config::load();
     let session_name = prefixed_name(name);
     let cwd = resolve_cwd(repo);
 
-    let mut claude_cmd = String::from("claude --dangerously-skip-permissions");
-    if find_git_root_at(&cwd).is_some() {
+    let mut claude_cmd = build_claude_command(&config);
+    if config.use_worktree && find_git_root_at(&cwd).is_some() {
         claude_cmd.push_str(&format!(" --worktree {}", shell_escape(&session_name)));
     }
     if let Some(p) = prompt {
@@ -20,10 +22,11 @@ pub fn launch_claude_session(name: &str, prompt: Option<&str>, repo: Option<&str
         claude_cmd.push_str(&shell_escape(p));
     }
 
-    create_tmux_session(&session_name, &cwd, &claude_cmd)
+    create_tmux_session(&config, &session_name, &cwd, &claude_cmd)
 }
 
 pub fn resume_claude_session(name: &str, repo: Option<&str>) -> Result<()> {
+    let config = Config::load();
     let cwd = resolve_cwd(repo);
 
     // Kill the dead tmux session first
@@ -31,12 +34,22 @@ pub fn resume_claude_session(name: &str, repo: Option<&str>) -> Result<()> {
         .args(["kill-session", "-t", name])
         .output();
 
-    let mut claude_cmd = String::from("claude --dangerously-skip-permissions --resume");
-    if find_git_root_at(&cwd).is_some() {
+    let mut claude_cmd = build_claude_command(&config);
+    claude_cmd.push_str(" --resume");
+    if config.use_worktree && find_git_root_at(&cwd).is_some() {
         claude_cmd.push_str(&format!(" --worktree {}", shell_escape(name)));
     }
 
-    create_tmux_session(name, &cwd, &claude_cmd)
+    create_tmux_session(&config, name, &cwd, &claude_cmd)
+}
+
+fn build_claude_command(config: &Config) -> String {
+    let mut cmd = config.claude_command.clone();
+    for flag in &config.claude_flags {
+        cmd.push(' ');
+        cmd.push_str(flag);
+    }
+    cmd
 }
 
 pub fn kill_session(session_name: &str) -> Result<()> {
@@ -55,8 +68,16 @@ pub fn kill_session(session_name: &str) -> Result<()> {
     Ok(())
 }
 
-fn create_tmux_session(session_name: &str, cwd: &str, shell_cmd: &str) -> Result<()> {
-    let login_shell = env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+fn create_tmux_session(
+    config: &Config,
+    session_name: &str,
+    cwd: &str,
+    shell_cmd: &str,
+) -> Result<()> {
+    let login_shell = config
+        .shell
+        .clone()
+        .unwrap_or_else(|| env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string()));
     let log_file = format!("/tmp/claude-deck-{}.log", session_name);
 
     // The shell command:
@@ -88,6 +109,9 @@ fn create_tmux_session(session_name: &str, cwd: &str, shell_cmd: &str) -> Result
         ),
     );
 
+    let cols = config.tmux_columns.to_string();
+    let rows = config.tmux_rows.to_string();
+
     let output = Command::new("tmux")
         .env("LANG", "en_US.UTF-8")
         .env("LC_CTYPE", "en_US.UTF-8")
@@ -100,9 +124,9 @@ fn create_tmux_session(session_name: &str, cwd: &str, shell_cmd: &str) -> Result
             "-c",
             cwd,
             "-x",
-            "220",
+            &cols,
             "-y",
-            "50",
+            &rows,
             "sh",
             "-c",
             &wrapped,
@@ -124,8 +148,15 @@ fn create_tmux_session(session_name: &str, cwd: &str, shell_cmd: &str) -> Result
         anyhow::bail!("tmux new-session failed: {}", stderr.trim());
     }
 
+    let history_limit = config.tmux_history_limit.to_string();
     Command::new("tmux")
-        .args(["set-option", "-t", session_name, "history-limit", "50000"])
+        .args([
+            "set-option",
+            "-t",
+            session_name,
+            "history-limit",
+            &history_limit,
+        ])
         .output()
         .ok();
 

@@ -7,6 +7,8 @@ import {
 	suggestWorkspace,
 	addWorkspace,
 	setPinnedWorkspace,
+	openTerminal,
+	openInEditor,
 } from "@/lib/api";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import {
@@ -33,12 +35,19 @@ import { WorkspacePicker } from "@/components/WorkspacePicker";
 import { WorkspaceTabs } from "@/components/WorkspaceTabs";
 import { BulkActions } from "@/components/BulkActions";
 import { QuickActionList } from "@/components/QuickActionList";
+import { SettingsDialog } from "@/components/SettingsDialog";
 import { useSessionList } from "@/hooks/useSessionList";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { filterSessions } from "@/lib/filters";
-import { modKey } from "@/lib/utils";
+import {
+	formatBinding,
+	DEFAULT_KEYBINDINGS,
+	ACTION_LABELS,
+	ALL_ACTIONS,
+} from "@/lib/keybindings";
+import { getSettings } from "@/lib/api";
 import type { Session } from "@/types/session";
 
 function App() {
@@ -60,6 +69,7 @@ function App() {
 	const [rightPanelView, setRightPanelView] = useState<"terminal" | "diff">(
 		"terminal",
 	);
+	const [settingsOpen, setSettingsOpen] = useState(false);
 
 	// Filter state
 	const [searchText, setSearchText] = useState("");
@@ -76,6 +86,10 @@ function App() {
 		new Set(),
 	);
 
+	// Keybindings state
+	const [keybindings, setKeybindings] =
+		useState<Record<string, string>>(DEFAULT_KEYBINDINGS);
+
 	// Auto-detect workspace suggestions
 	const suggestedPathsRef = useRef<Set<string>>(new Set());
 
@@ -91,6 +105,11 @@ function App() {
 				}
 			})
 			.catch(() => {});
+		getSettings()
+			.then((s) => {
+				setKeybindings({ ...DEFAULT_KEYBINDINGS, ...s.keybindings });
+			})
+			.catch(() => {});
 	}, []);
 
 	// Check if any dialog is open
@@ -101,7 +120,8 @@ function App() {
 		tagPickerOpen ||
 		workspacePickerOpen ||
 		quickActionOpen ||
-		killConfirmOpen;
+		killConfirmOpen ||
+		settingsOpen;
 
 	// Filtered sessions
 	const filteredSessions = useMemo(
@@ -184,6 +204,41 @@ function App() {
 		setRenameOpen(true);
 	}, []);
 
+	const handleOpenTerminal = useCallback((session: Session) => {
+		if (!session.pane_path) {
+			toast.error("Session has no working directory");
+			return;
+		}
+		openTerminal(session.pane_path).catch((err) => {
+			toast.error(`Failed to open terminal: ${err}`);
+		});
+	}, []);
+
+	const handleOpenEditor = useCallback((session: Session) => {
+		if (!session.pane_path) {
+			toast.error("Session has no working directory");
+			return;
+		}
+		openInEditor(session.pane_path).catch((err) => {
+			toast.error(`Failed to open editor: ${err}`);
+		});
+	}, []);
+
+	const handleCopyPath = useCallback((session: Session) => {
+		if (!session.pane_path) {
+			toast.error("Session has no path to copy");
+			return;
+		}
+		navigator.clipboard
+			.writeText(session.pane_path)
+			.then(() => {
+				toast.success("Path copied to clipboard");
+			})
+			.catch((err) => {
+				toast.error(`Failed to copy: ${err}`);
+			});
+	}, []);
+
 	const handleWorkspaceSelected = useCallback((path: string | null) => {
 		setActiveWorkspace(path);
 		setPinnedWorkspace(path).catch(() => {});
@@ -215,6 +270,7 @@ function App() {
 		selectedSession,
 		terminalFullscreen,
 		filteredSessions,
+		keybindings,
 		setTerminalFullscreen,
 		setTerminalSession,
 		setSelectedSession,
@@ -228,6 +284,10 @@ function App() {
 		handleRename,
 		toggleDiffView: () =>
 			setRightPanelView((v) => (v === "terminal" ? "diff" : "terminal")),
+		handleOpenTerminal,
+		handleOpenEditor,
+		handleCopyPath,
+		openSettings: () => setSettingsOpen(true),
 		// Multi-select
 		selectAll: () => {
 			const allNames = new Set(filteredSessions.map((s) => s.name));
@@ -403,85 +463,19 @@ function App() {
 				</div>
 
 				{!terminalFullscreen && (
-					<div className="border-t border-border px-4 py-1 text-[10px] text-muted-foreground flex gap-3">
-						<span>
-							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">
-								{modKey}↑↓
-							</kbd>{" "}
-							Navigate
-						</span>
-						<span>
-							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">
-								{modKey}↵
-							</kbd>{" "}
-							Fullscreen
-						</span>
-						<span>
-							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">
-								{modKey}/
-							</kbd>{" "}
-							Search
-						</span>
-						<span>
-							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">
-								{modKey}N
-							</kbd>{" "}
-							New
-						</span>
-						<span>
-							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">
-								{modKey}A
-							</kbd>{" "}
-							Select All
-						</span>
-						<span>
-							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">
-								{modKey}T
-							</kbd>{" "}
-							Tags
-						</span>
-						<span>
-							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">
-								{modKey}W
-							</kbd>{" "}
-							Workspaces
-						</span>
-						<span>
-							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">
-								{modKey}J
-							</kbd>{" "}
-							Quick Actions
-						</span>
-						<span>
-							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">
-								{modKey}P
-							</kbd>{" "}
-							Send Prompt
-						</span>
-						<span>
-							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">
-								{modKey}R
-							</kbd>{" "}
-							Rename
-						</span>
-						<span>
-							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">
-								{modKey}K
-							</kbd>{" "}
-							Kill
-						</span>
-						<span>
-							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">
-								{modKey}D
-							</kbd>{" "}
-							{rightPanelView === "diff" ? "Terminal" : "Diff"}
-						</span>
-						<span>
-							<kbd className="px-1 py-0.5 rounded bg-muted font-mono">
-								{modKey}F
-							</kbd>{" "}
-							Fullscreen
-						</span>
+					<div className="border-t border-border px-4 py-1 text-[10px] text-muted-foreground flex gap-3 flex-wrap">
+						{ALL_ACTIONS.map((action) => {
+							const binding = keybindings[action];
+							if (!binding) return null;
+							return (
+								<span key={action}>
+									<kbd className="px-1 py-0.5 rounded bg-muted font-mono">
+										{formatBinding(binding)}
+									</kbd>{" "}
+									{ACTION_LABELS[action]}
+								</span>
+							);
+						})}
 					</div>
 				)}
 
@@ -531,6 +525,21 @@ function App() {
 					onWorkspaceSelected={handleWorkspaceSelected}
 					activeWorkspace={activeWorkspace}
 					sessions={sessions}
+				/>
+
+				<SettingsDialog
+					open={settingsOpen}
+					onOpenChange={setSettingsOpen}
+					onSaved={() => {
+						getSettings()
+							.then((s) => {
+								setKeybindings({
+									...DEFAULT_KEYBINDINGS,
+									...s.keybindings,
+								});
+							})
+							.catch(() => {});
+					}}
 				/>
 
 				{/* Kill confirmation */}

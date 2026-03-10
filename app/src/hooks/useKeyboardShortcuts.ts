@@ -1,12 +1,18 @@
-import { useEffect, useCallback, useRef } from "react";
+import { useEffect, useCallback, useRef, useMemo } from "react";
 import type { Session } from "@/types/session";
-import { isMac } from "@/lib/utils";
+import {
+	buildKeyMap,
+	eventToSignature,
+	DEFAULT_KEYBINDINGS,
+	type Action,
+} from "@/lib/keybindings";
 
 interface UseKeyboardShortcutsOptions {
 	anyDialogOpen: boolean;
 	selectedSession: Session | null;
 	terminalFullscreen: boolean;
 	filteredSessions: Session[];
+	keybindings: Record<string, string>;
 	setTerminalFullscreen: (v: boolean) => void;
 	setTerminalSession: (v: string | null) => void;
 	setSelectedSession: (v: Session | null) => void;
@@ -19,6 +25,10 @@ interface UseKeyboardShortcutsOptions {
 	requestKill: (session: Session) => void;
 	handleRename: (session: Session) => void;
 	toggleDiffView: () => void;
+	handleOpenTerminal: (session: Session) => void;
+	handleOpenEditor: (session: Session) => void;
+	handleCopyPath: (session: Session) => void;
+	openSettings: () => void;
 	// Multi-select
 	selectAll: () => void;
 	clearSelection: () => void;
@@ -31,6 +41,7 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
 		selectedSession,
 		terminalFullscreen,
 		filteredSessions,
+		keybindings,
 		setTerminalFullscreen,
 		setTerminalSession,
 		setSelectedSession,
@@ -43,23 +54,57 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
 		requestKill,
 		handleRename,
 		toggleDiffView,
+		handleOpenTerminal,
+		handleOpenEditor,
+		handleCopyPath,
+		openSettings,
 		selectAll,
 		clearSelection,
 		selectedSessions,
 	} = options;
 
-	// Use ref to avoid recreating the keydown handler on every selection change
 	const selectedSessionsRef = useRef(selectedSessions);
 	selectedSessionsRef.current = selectedSessions;
+
+	const keyMap = useMemo(
+		() => buildKeyMap({ ...DEFAULT_KEYBINDINGS, ...keybindings }),
+		[keybindings],
+	);
 
 	const handleKeyDown = useCallback(
 		(e: KeyboardEvent) => {
 			if (anyDialogOpen) return;
-			const mod = isMac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
-			if (!mod || e.altKey) return;
 
-			switch (e.key) {
-				case "a":
+			const sig = eventToSignature(e);
+			if (!sig) return;
+
+			const action = keyMap.get(sig) as Action | undefined;
+			if (!action) return;
+
+			switch (action) {
+				case "settings":
+					e.preventDefault();
+					openSettings();
+					break;
+				case "open_terminal":
+					if (selectedSession) {
+						e.preventDefault();
+						handleOpenTerminal(selectedSession);
+					}
+					break;
+				case "open_editor":
+					if (selectedSession) {
+						e.preventDefault();
+						handleOpenEditor(selectedSession);
+					}
+					break;
+				case "copy_path":
+					if (selectedSession) {
+						e.preventDefault();
+						handleCopyPath(selectedSession);
+					}
+					break;
+				case "select_all":
 					e.preventDefault();
 					if (selectedSessionsRef.current.size > 0) {
 						clearSelection();
@@ -67,7 +112,7 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
 						selectAll();
 					}
 					break;
-				case "f":
+				case "fullscreen":
 					if (selectedSession) {
 						e.preventDefault();
 						if (terminalFullscreen) {
@@ -78,63 +123,63 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
 						}
 					}
 					break;
-				case "/":
+				case "search":
 					e.preventDefault();
 					setShowSearch(true);
 					break;
-				case "n":
+				case "new_session":
 					e.preventDefault();
 					setLaunchOpen(true);
 					break;
-				case "t":
+				case "tags":
 					if (selectedSession) {
 						e.preventDefault();
 						setTagPickerOpen(true);
 					}
 					break;
-				case "w":
+				case "workspaces":
 					e.preventDefault();
 					setWorkspacePickerOpen(true);
 					break;
-				case "j":
+				case "quick_actions":
 					if (selectedSession) {
 						e.preventDefault();
 						setQuickActionOpen(true);
 					}
 					break;
-				case "p":
+				case "send_prompt":
 					if (selectedSession) {
 						e.preventDefault();
 						handleSendPrompt(selectedSession);
 					}
 					break;
-				case "k":
+				case "kill":
 					if (selectedSession && selectedSession.status !== "Dead") {
 						e.preventDefault();
 						requestKill(selectedSession);
 					}
 					break;
-				case "r":
+				case "rename":
 					if (selectedSession) {
 						e.preventDefault();
 						handleRename(selectedSession);
 					}
 					break;
-				case "d":
+				case "diff_view":
 					if (selectedSession) {
 						e.preventDefault();
 						toggleDiffView();
 					}
 					break;
-				case "Enter":
+				case "enter_fullscreen":
 					if (selectedSession) {
 						e.preventDefault();
 						setTerminalSession(selectedSession.name);
 						setTerminalFullscreen(true);
 					}
 					break;
-				case "ArrowDown":
-				case "ArrowUp": {
+				case "navigate_down":
+				case "navigate_up": {
 					e.preventDefault();
 					const list = filteredSessions;
 					if (list.length === 0) break;
@@ -145,7 +190,7 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
 					}
 					const idx = list.findIndex((s) => s.name === selectedSession.name);
 					const next =
-						e.key === "ArrowDown"
+						action === "navigate_down"
 							? Math.min(idx + 1, list.length - 1)
 							: Math.max(idx - 1, 0);
 					setSelectedSession(list[next]);
@@ -159,6 +204,7 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
 			selectedSession,
 			terminalFullscreen,
 			filteredSessions,
+			keyMap,
 			handleRename,
 			handleSendPrompt,
 			requestKill,
@@ -171,6 +217,10 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
 			setWorkspacePickerOpen,
 			setQuickActionOpen,
 			toggleDiffView,
+			handleOpenTerminal,
+			handleOpenEditor,
+			handleCopyPath,
+			openSettings,
 			selectAll,
 			clearSelection,
 		],

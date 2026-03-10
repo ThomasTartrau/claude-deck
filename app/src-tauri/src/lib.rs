@@ -279,6 +279,145 @@ fn delete_quick_action(index: usize) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn open_terminal(path: String) -> Result<(), String> {
+    let config = Config::load();
+    let canonical = std::fs::canonicalize(&path).map_err(|e| format!("Invalid path: {}", e))?;
+
+    if !canonical.is_dir() {
+        return Err(format!("Not a directory: {}", canonical.display()));
+    }
+
+    if let Some(ref app) = config.terminal_app {
+        #[cfg(target_os = "macos")]
+        {
+            let path_str = canonical.to_string_lossy();
+            std::process::Command::new("open")
+                .args(["-a", app, path_str.as_ref()])
+                .spawn()
+                .map_err(|e| format!("Failed to open {}: {}", app, e))?;
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            std::process::Command::new(app)
+                .current_dir(&canonical)
+                .spawn()
+                .map_err(|e| format!("Failed to open {}: {}", app, e))?;
+        }
+    } else {
+        #[cfg(target_os = "macos")]
+        {
+            let path_str = canonical.to_string_lossy();
+            std::process::Command::new("open")
+                .args(["-a", "Terminal", path_str.as_ref()])
+                .spawn()
+                .map_err(|e| format!("Failed to open terminal: {}", e))?;
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            let terminals = [
+                "x-terminal-emulator",
+                "gnome-terminal",
+                "konsole",
+                "xfce4-terminal",
+                "xterm",
+            ];
+            let mut opened = false;
+            for term in &terminals {
+                if std::process::Command::new(term)
+                    .current_dir(&canonical)
+                    .spawn()
+                    .is_ok()
+                {
+                    opened = true;
+                    break;
+                }
+            }
+            if !opened {
+                return Err("No terminal emulator found".to_string());
+            }
+        }
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+fn open_in_editor(path: String) -> Result<(), String> {
+    let config = Config::load();
+    let canonical = std::fs::canonicalize(&path).map_err(|e| format!("Invalid path: {}", e))?;
+
+    if !canonical.is_dir() {
+        return Err(format!("Not a directory: {}", canonical.display()));
+    }
+
+    let editor = config.editor_command.as_deref().unwrap_or("code");
+    let canonical_str = canonical.to_string_lossy().to_string();
+
+    std::process::Command::new(editor)
+        .arg(&canonical_str)
+        .spawn()
+        .map_err(|e| format!("Failed to open editor '{}': {}", editor, e))?;
+
+    Ok(())
+}
+
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
+struct AppSettings {
+    claude_command: String,
+    claude_flags: Vec<String>,
+    use_worktree: bool,
+    terminal_app: Option<String>,
+    editor_command: Option<String>,
+    shell: Option<String>,
+    tmux_columns: u16,
+    tmux_rows: u16,
+    tmux_history_limit: u32,
+    refresh_interval_secs: u64,
+    notifications: bool,
+    keybindings: std::collections::HashMap<String, String>,
+}
+
+#[tauri::command]
+fn get_settings() -> AppSettings {
+    let config = Config::load();
+    AppSettings {
+        claude_command: config.claude_command,
+        claude_flags: config.claude_flags,
+        use_worktree: config.use_worktree,
+        terminal_app: config.terminal_app,
+        editor_command: config.editor_command,
+        shell: config.shell,
+        tmux_columns: config.tmux_columns,
+        tmux_rows: config.tmux_rows,
+        tmux_history_limit: config.tmux_history_limit,
+        refresh_interval_secs: config.refresh_interval_secs,
+        notifications: config.notifications,
+        keybindings: config.keybindings,
+    }
+}
+
+#[tauri::command]
+fn update_settings(settings: AppSettings) -> Result<(), String> {
+    let mut config = Config::load();
+    config.claude_command = settings.claude_command;
+    config.claude_flags = settings.claude_flags;
+    config.use_worktree = settings.use_worktree;
+    config.terminal_app = settings.terminal_app;
+    config.editor_command = settings.editor_command;
+    config.shell = settings.shell;
+    config.tmux_columns = settings.tmux_columns;
+    config.tmux_rows = settings.tmux_rows;
+    config.tmux_history_limit = settings.tmux_history_limit;
+    config.refresh_interval_secs = settings.refresh_interval_secs;
+    config.notifications = settings.notifications;
+    config.keybindings = settings.keybindings;
+    config.save();
+    Ok(())
+}
+
+#[tauri::command]
 fn get_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
@@ -774,6 +913,10 @@ pub fn run() {
             git_stage_lines,
             git_unstage_lines,
             git_discard_lines,
+            open_terminal,
+            open_in_editor,
+            get_settings,
+            update_settings,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -36,6 +36,75 @@ pub struct Config {
     pub pinned_workspace: Option<String>,
     #[serde(default)]
     pub collapsed_groups: Vec<String>,
+
+    // ── Configurable commands ────────────────────────────────────────
+    #[serde(default = "default_claude_command")]
+    pub claude_command: String,
+    #[serde(default)]
+    pub claude_flags: Vec<String>,
+    #[serde(default = "default_true")]
+    pub use_worktree: bool,
+    #[serde(default)]
+    pub terminal_app: Option<String>,
+    #[serde(default)]
+    pub editor_command: Option<String>,
+    #[serde(default)]
+    pub shell: Option<String>,
+
+    // ── Tmux settings ────────────────────────────────────────────────
+    #[serde(default = "default_tmux_columns")]
+    pub tmux_columns: u16,
+    #[serde(default = "default_tmux_rows")]
+    pub tmux_rows: u16,
+    #[serde(default = "default_tmux_history_limit")]
+    pub tmux_history_limit: u32,
+
+    // ── Keybindings ──────────────────────────────────────────────────
+    #[serde(default = "default_keybindings")]
+    pub keybindings: HashMap<String, String>,
+}
+
+fn default_claude_command() -> String {
+    "claude --dangerously-skip-permissions".into()
+}
+
+fn default_tmux_columns() -> u16 {
+    220
+}
+
+fn default_tmux_rows() -> u16 {
+    50
+}
+
+fn default_tmux_history_limit() -> u32 {
+    50000
+}
+
+pub fn default_keybindings() -> HashMap<String, String> {
+    let pairs = [
+        ("settings", "mod+,"),
+        ("search", "mod+/"),
+        ("new_session", "mod+n"),
+        ("select_all", "mod+a"),
+        ("fullscreen", "mod+f"),
+        ("navigate_up", "mod+ArrowUp"),
+        ("navigate_down", "mod+ArrowDown"),
+        ("enter_fullscreen", "mod+Enter"),
+        ("tags", "mod+t"),
+        ("workspaces", "mod+w"),
+        ("quick_actions", "mod+j"),
+        ("send_prompt", "mod+p"),
+        ("kill", "mod+k"),
+        ("rename", "mod+r"),
+        ("diff_view", "mod+d"),
+        ("open_terminal", "mod+o"),
+        ("open_editor", "mod+e"),
+        ("copy_path", "mod+shift+c"),
+    ];
+    pairs
+        .iter()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -62,6 +131,16 @@ impl Default for Config {
             tags: HashMap::new(),
             pinned_workspace: None,
             collapsed_groups: Vec::new(),
+            claude_command: default_claude_command(),
+            claude_flags: Vec::new(),
+            use_worktree: true,
+            terminal_app: None,
+            editor_command: None,
+            shell: None,
+            tmux_columns: default_tmux_columns(),
+            tmux_rows: default_tmux_rows(),
+            tmux_history_limit: default_tmux_history_limit(),
+            keybindings: default_keybindings(),
         }
     }
 }
