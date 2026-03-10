@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.4](https://github.com/ThomasTartrau/claude-deck/compare/core-v0.2.3...core-v0.2.4) - 2026-03-10
+
+### Fixed
+
+- unset CLAUDE* env vars inside shell command, not on Command
+- strip all CLAUDE* env vars before spawning tmux sessions
+
+### Other
+
+- Merge pull request #50 from ThomasTartrau/release-plz-2026-03-10T11-05-49Z
+
 ## [0.2.3](https://github.com/ThomasTartrau/claude-deck/compare/core-v0.2.2...core-v0.2.3) - 2026-03-10
 
 ### Fixed
