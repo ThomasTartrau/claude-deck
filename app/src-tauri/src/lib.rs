@@ -3,8 +3,10 @@ mod pty;
 mod session;
 
 use claude_deck_core::claude::hooks;
-use claude_deck_core::config::{Config, QuickAction};
+use claude_deck_core::claude::launcher as core_launcher;
+use claude_deck_core::config::{self, Config, QuickAction};
 use claude_deck_core::tmux::command as tmux_cmd;
+use claude_deck_core::tmux::session as tmux_session;
 use serde::Serialize;
 use session::SessionInfo;
 
@@ -724,6 +726,19 @@ pub fn run() {
                         .build(),
                 )?;
             }
+
+            // Restore saved sessions that are no longer running in tmux
+            let live_sessions = tmux_session::list_sessions().unwrap_or_default();
+            let live_names: std::collections::HashSet<String> =
+                live_sessions.iter().map(|s| s.name.clone()).collect();
+            let saved = config::load_saved_sessions();
+            for s in &saved {
+                if live_names.contains(&s.name) {
+                    continue;
+                }
+                let _ = core_launcher::resume_claude_session(&s.name, Some(&s.path));
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

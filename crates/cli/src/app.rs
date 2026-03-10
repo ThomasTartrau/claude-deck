@@ -187,6 +187,8 @@ pub struct App {
     pub qa_field_focus: u8, // 0=key, 1=label, 2=prompt
     pub show_diff: bool,
     pub diff_lines: Vec<String>,
+    /// Guard: don't overwrite sessions.toml until restore_sessions() has run.
+    sessions_restored: bool,
 }
 
 impl App {
@@ -246,6 +248,7 @@ impl App {
             qa_field_focus: 0,
             show_diff: false,
             diff_lines: Vec::new(),
+            sessions_restored: false,
         })
     }
 
@@ -279,6 +282,7 @@ impl App {
             self.flash_message =
                 Some((format!("Restored {} session(s)", restored), Instant::now()));
         }
+        self.sessions_restored = true;
     }
 
     pub fn active_workspace_name(&self) -> Option<&str> {
@@ -375,27 +379,31 @@ impl App {
             }
         }
 
-        // Persist active sessions for restore after reboot (only when list changes)
-        let current_names: Vec<String> = self
-            .all_sessions
-            .iter()
-            .filter(|s| s.status != SessionStatus::Dead)
-            .map(|s| s.name.clone())
-            .collect();
-        if current_names != self.prev_session_names {
-            self.prev_session_names = current_names;
-            let saved: Vec<SavedSession> = self
+        // Persist active sessions for restore after reboot (only when list changes).
+        // Skip until restore_sessions() has run, to avoid overwriting sessions.toml
+        // with an empty list before we had a chance to restore saved sessions.
+        if self.sessions_restored {
+            let current_names: Vec<String> = self
                 .all_sessions
                 .iter()
                 .filter(|s| s.status != SessionStatus::Dead)
-                .filter_map(|s| {
-                    Some(SavedSession {
-                        name: s.name.clone(),
-                        path: s.pane_path.clone()?,
-                    })
-                })
+                .map(|s| s.name.clone())
                 .collect();
-            config::save_sessions(&saved);
+            if current_names != self.prev_session_names {
+                self.prev_session_names = current_names;
+                let saved: Vec<SavedSession> = self
+                    .all_sessions
+                    .iter()
+                    .filter(|s| s.status != SessionStatus::Dead)
+                    .filter_map(|s| {
+                        Some(SavedSession {
+                            name: s.name.clone(),
+                            path: s.pane_path.clone()?,
+                        })
+                    })
+                    .collect();
+                config::save_sessions(&saved);
+            }
         }
 
         self.apply_filter();
