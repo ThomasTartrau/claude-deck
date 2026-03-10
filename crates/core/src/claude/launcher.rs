@@ -60,7 +60,7 @@ fn create_tmux_session(session_name: &str, cwd: &str, shell_cmd: &str) -> Result
     // GUI apps on macOS don't inherit shell PATH, so `sh -c` would miss binaries.
     let login_shell = env::var("SHELL").unwrap_or_else(|_| "bash".to_string());
     let wrapped = format!(
-        "unset CLAUDECODE; exec {} -lc {}",
+        "unset CLAUDECODE CLAUDE_CODE_ENTRYPOINT; exec {} -lc {}",
         login_shell,
         shell_escape(shell_cmd)
     );
