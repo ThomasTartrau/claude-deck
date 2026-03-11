@@ -1,5 +1,11 @@
 import { useEffect, useRef, useCallback } from "react";
-import { ptyClose, ptyWrite, ptyResize, ptyOpen, saveClipboardImage } from "@/lib/api";
+import {
+	ptyClose,
+	ptyWrite,
+	ptyResize,
+	ptyOpen,
+	saveClipboardImage,
+} from "@/lib/api";
 import { modKey } from "@/lib/utils";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -76,7 +82,8 @@ export function TerminalPane({
 				e.preventDefault();
 				const blob = item.getAsFile();
 				if (!blob) return;
-				blob.arrayBuffer()
+				blob
+					.arrayBuffer()
 					.then((buf) => {
 						const bytes = Array.from(new Uint8Array(buf));
 						return saveClipboardImage(bytes, item.type);
@@ -100,7 +107,8 @@ export function TerminalPane({
 			.onDragDropEvent((event) => {
 				if (cancelled) return;
 				if (event.payload.type === "drop" && currentSessionRef.current) {
-					const paths = (event.payload as { type: string; paths: string[] }).paths;
+					const paths = (event.payload as { type: string; paths: string[] })
+						.paths;
 					if (paths.length > 0) {
 						ptyWrite(paths.join(" ")).catch(() => {});
 					}
