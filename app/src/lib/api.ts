@@ -242,6 +242,15 @@ export function updateSettings(settings: AppSettings): Promise<void> {
 	return invoke("update_settings", { settings });
 }
 
+// ── Clipboard ───────────────────────────────────────────────────────
+
+export function saveClipboardImage(
+	data: number[],
+	mimeType: string,
+): Promise<string> {
+	return invoke<string>("save_clipboard_image", { data, mimeType });
+}
+
 // ── Hooks ───────────────────────────────────────────────────────────
 
 export function ensureHooks(): Promise<void> {

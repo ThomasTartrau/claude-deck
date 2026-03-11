@@ -100,6 +100,9 @@ pub fn default_keybindings() -> HashMap<String, String> {
         ("open_terminal", "mod+o"),
         ("open_editor", "mod+e"),
         ("copy_path", "mod+shift+c"),
+        ("zoom_in", "mod+="),
+        ("zoom_out", "mod+-"),
+        ("zoom_reset", "mod+0"),
     ];
     pairs
         .iter()

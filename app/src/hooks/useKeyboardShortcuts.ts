@@ -2,7 +2,7 @@ import { useEffect, useCallback, useRef, useMemo } from "react";
 import type { Session } from "@/types/session";
 import {
 	buildKeyMap,
-	eventToSignature,
+	eventToSignatures,
 	DEFAULT_KEYBINDINGS,
 	type Action,
 } from "@/lib/keybindings";
@@ -66,6 +66,17 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
 	const selectedSessionsRef = useRef(selectedSessions);
 	selectedSessionsRef.current = selectedSessions;
 
+	const zoomRef = useRef(1.0);
+	const applyZoom = useCallback((delta: number) => {
+		if (delta === 0) {
+			zoomRef.current = 1.0;
+		} else {
+			zoomRef.current = Math.min(2.0, Math.max(0.5, zoomRef.current + delta));
+		}
+		document.documentElement.style.zoom = `${zoomRef.current}`;
+		window.dispatchEvent(new Event("resize"));
+	}, []);
+
 	const keyMap = useMemo(
 		() => buildKeyMap({ ...DEFAULT_KEYBINDINGS, ...keybindings }),
 		[keybindings],
@@ -75,10 +86,14 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
 		(e: KeyboardEvent) => {
 			if (anyDialogOpen) return;
 
-			const sig = eventToSignature(e);
-			if (!sig) return;
+			const sigs = eventToSignatures(e);
+			if (sigs.length === 0) return;
 
-			const action = keyMap.get(sig) as Action | undefined;
+			let action: Action | undefined;
+			for (const sig of sigs) {
+				action = keyMap.get(sig) as Action | undefined;
+				if (action) break;
+			}
 			if (!action) return;
 
 			switch (action) {
@@ -178,6 +193,18 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
 						setTerminalFullscreen(true);
 					}
 					break;
+				case "zoom_in":
+					e.preventDefault();
+					applyZoom(0.1);
+					break;
+				case "zoom_out":
+					e.preventDefault();
+					applyZoom(-0.1);
+					break;
+				case "zoom_reset":
+					e.preventDefault();
+					applyZoom(0);
+					break;
 				case "navigate_down":
 				case "navigate_up": {
 					e.preventDefault();
@@ -223,6 +250,7 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
 			openSettings,
 			selectAll,
 			clearSelection,
+			applyZoom,
 		],
 	);
 

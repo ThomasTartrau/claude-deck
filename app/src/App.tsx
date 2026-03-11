@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+
 import {
 	ensureHooks,
 	killSession,
@@ -428,7 +429,7 @@ function App() {
 
 						{/* Terminal / Diff — both stay mounted, hidden via CSS */}
 						<div
-							className={`flex-1 overflow-hidden ${rightPanelView !== "terminal" ? "hidden" : ""}`}
+							className={`flex-1 min-h-0 overflow-hidden ${rightPanelView !== "terminal" ? "hidden" : ""}`}
 						>
 							<TerminalPane
 								sessionName={terminalSession}
@@ -445,7 +446,7 @@ function App() {
 							/>
 						</div>
 						<div
-							className={`flex-1 overflow-hidden ${rightPanelView !== "diff" ? "hidden" : ""}`}
+							className={`flex-1 min-h-0 overflow-hidden ${rightPanelView !== "diff" ? "hidden" : ""}`}
 						>
 							<DiffView
 								sessionName={terminalSession}

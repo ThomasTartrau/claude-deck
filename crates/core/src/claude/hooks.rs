@@ -20,12 +20,16 @@ printf '%s' "$1" > "$DIR/$S"
 
 const HOOK_MARKER: &str = "claude-deck-hook.sh";
 
-fn status_dir() -> PathBuf {
+pub fn status_dir() -> PathBuf {
     // Use a user-owned directory to prevent symlink attacks in world-writable /tmp
     dirs::cache_dir()
         .unwrap_or_else(|| PathBuf::from("/tmp"))
         .join("claude-deck")
         .join("status")
+}
+
+pub fn status_file_path(session_name: &str) -> PathBuf {
+    status_dir().join(session_name)
 }
 
 fn hook_script_path() -> PathBuf {
