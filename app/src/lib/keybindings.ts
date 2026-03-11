@@ -19,6 +19,9 @@ export const ALL_ACTIONS = [
 	"open_terminal",
 	"open_editor",
 	"copy_path",
+	"zoom_in",
+	"zoom_out",
+	"zoom_reset",
 ] as const;
 
 export type Action = (typeof ALL_ACTIONS)[number];
@@ -42,6 +45,9 @@ export const ACTION_LABELS: Record<Action, string> = {
 	open_terminal: "Open Terminal",
 	open_editor: "Open Editor",
 	copy_path: "Copy Path",
+	zoom_in: "Zoom In",
+	zoom_out: "Zoom Out",
+	zoom_reset: "Zoom Reset",
 };
 
 export const DEFAULT_KEYBINDINGS: Record<string, string> = {
@@ -63,6 +69,9 @@ export const DEFAULT_KEYBINDINGS: Record<string, string> = {
 	open_terminal: "mod+o",
 	open_editor: "mod+e",
 	copy_path: "mod+shift+c",
+	zoom_in: "mod+=",
+	zoom_out: "mod+-",
+	zoom_reset: "mod+0",
 };
 
 interface ParsedBinding {
@@ -108,19 +117,54 @@ function bindingToSignature(binding: string): string | null {
 	return parts.join("+");
 }
 
+// Map e.code to the character used in binding strings, for keys that
+// vary across keyboard layouts (=, -, 0, etc.).
+const CODE_TO_KEY: Record<string, string> = {
+	Equal: "=",
+	Minus: "-",
+	Digit0: "0",
+	Digit1: "1",
+	Digit2: "2",
+	Digit3: "3",
+	Digit4: "4",
+	Digit5: "5",
+	Digit6: "6",
+	Digit7: "7",
+	Digit8: "8",
+	Digit9: "9",
+};
+
+/**
+ * Convert a KeyboardEvent into one or more signature strings for matching.
+ * Returns an array because layout-dependent keys may need both e.key and e.code lookups.
+ */
+export function eventToSignatures(e: KeyboardEvent): string[] {
+	const mod = isMac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
+	if (!mod) return [];
+
+	const prefix: string[] = ["mod"];
+	if (e.shiftKey) prefix.push("shift");
+	if (e.altKey) prefix.push("alt");
+
+	const sigs: string[] = [];
+	// Primary: use e.key
+	sigs.push([...prefix, e.key.toLowerCase()].join("+"));
+	// Fallback: use e.code mapping for layout-independent matching
+	const codeKey = CODE_TO_KEY[e.code];
+	if (codeKey) {
+		const codeSig = [...prefix, codeKey].join("+");
+		if (!sigs.includes(codeSig)) sigs.push(codeSig);
+	}
+	return sigs;
+}
+
 /**
  * Convert a KeyboardEvent into a signature string for matching.
+ * @deprecated Use eventToSignatures for layout-independent matching.
  */
 export function eventToSignature(e: KeyboardEvent): string | null {
-	const mod = isMac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
-	if (!mod) return null;
-
-	const parts: string[] = ["mod"];
-	if (e.shiftKey) parts.push("shift");
-	if (e.altKey) parts.push("alt");
-	// Normalize key to lowercase for matching
-	parts.push(e.key.toLowerCase());
-	return parts.join("+");
+	const sigs = eventToSignatures(e);
+	return sigs.length > 0 ? sigs[0] : null;
 }
 
 /**

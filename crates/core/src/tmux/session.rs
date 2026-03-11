@@ -1,5 +1,6 @@
 use anyhow::Result;
 
+use crate::claude::hooks;
 use crate::model::session::{Session, SessionStatus};
 use crate::tmux::command::{capture_pane, run_tmux_allow_failure};
 use crate::tmux::parser;
@@ -101,19 +102,19 @@ pub fn is_pane_running_claude(pane_pid: Option<u32>) -> bool {
 
 /// Detect Claude session status via hook state files with pane-based fallback.
 ///
-/// Claude Code hooks write status to /tmp/claude-deck-status/<session_name>.
+/// Claude Code hooks write status to the cache dir (~/Library/Caches/claude-deck/status/).
 /// However, tool interruptions (ctrl+c) don't fire any hook, leaving the file
 /// stuck on "running". As a fallback, when the status file says "running" but
 /// is stale (>10s old), we check the tmux pane for interruption markers.
 pub fn detect_pane_status(session_name: &str, _pane_pid: Option<u32>) -> SessionStatus {
-    let status = read_session_status(session_name).unwrap_or(SessionStatus::Idle);
+    let status = hooks::read_session_status(session_name).unwrap_or(SessionStatus::Idle);
 
     if status != SessionStatus::Running {
         return status;
     }
 
     // Check if the status file is stale — if recently updated, trust it
-    let status_path = std::path::PathBuf::from("/tmp/claude-deck-status").join(session_name);
+    let status_path = hooks::status_file_path(session_name);
     let is_stale = std::fs::metadata(&status_path)
         .ok()
         .and_then(|m| m.modified().ok())
@@ -132,17 +133,6 @@ pub fn detect_pane_status(session_name: &str, _pane_pid: Option<u32>) -> Session
     } else {
         SessionStatus::Running
     }
-}
-
-/// Read session status from the hook state file.
-/// Returns None if no state file exists (hooks not yet active for this session).
-pub fn read_session_status(session_name: &str) -> Option<SessionStatus> {
-    let path = std::path::PathBuf::from("/tmp/claude-deck-status").join(session_name);
-    std::fs::read_to_string(path).ok().map(|s| match s.trim() {
-        "running" => SessionStatus::Running,
-        "waiting" => SessionStatus::Waiting,
-        _ => SessionStatus::Idle,
-    })
 }
 
 /// Check the last lines of a tmux pane for signs that Claude is idle/interrupted.

@@ -422,6 +422,26 @@ fn get_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
+#[tauri::command]
+fn save_clipboard_image(data: Vec<u8>, mime_type: String) -> Result<String, String> {
+    let ext = match mime_type.as_str() {
+        "image/png" => "png",
+        "image/jpeg" | "image/jpg" => "jpg",
+        "image/gif" => "gif",
+        "image/webp" => "webp",
+        "image/svg+xml" => "svg",
+        _ => "png",
+    };
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    let filename = format!("claude-deck-paste-{}.{}", timestamp, ext);
+    let path = std::env::temp_dir().join(&filename);
+    std::fs::write(&path, &data).map_err(|e| format!("Failed to save image: {}", e))?;
+    Ok(path.to_string_lossy().to_string())
+}
+
 #[derive(Debug, Clone, Serialize)]
 struct DiffFile {
     path: String,
@@ -917,6 +937,7 @@ pub fn run() {
             open_in_editor,
             get_settings,
             update_settings,
+            save_clipboard_image,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

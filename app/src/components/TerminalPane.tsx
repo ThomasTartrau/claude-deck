@@ -1,7 +1,14 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import { ptyClose, ptyWrite, ptyResize, ptyOpen } from "@/lib/api";
+import { useEffect, useRef, useCallback } from "react";
+import {
+	ptyClose,
+	ptyWrite,
+	ptyResize,
+	ptyOpen,
+	saveClipboardImage,
+} from "@/lib/api";
 import { modKey } from "@/lib/utils";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
@@ -18,6 +25,8 @@ interface TerminalPaneProps {
 
 const TERM_FONT_FAMILY =
 	"'Geist Mono', 'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace";
+
+import { useState } from "react";
 
 function useFontReady(fontFamily: string): boolean {
 	const [ready, setReady] = useState(false);
@@ -59,6 +68,65 @@ export function TerminalPane({
 			return ptyClose().catch(() => {});
 		}
 		return Promise.resolve();
+	}, []);
+
+	// Handle image paste and file drop
+	const handlePaste = useCallback((e: ClipboardEvent) => {
+		if (!currentSessionRef.current) return;
+		const items = e.clipboardData?.items;
+		if (!items) return;
+
+		for (let i = 0; i < items.length; i++) {
+			const item = items[i];
+			if (item.type.startsWith("image/")) {
+				e.preventDefault();
+				const blob = item.getAsFile();
+				if (!blob) return;
+				blob
+					.arrayBuffer()
+					.then((buf) => {
+						const bytes = Array.from(new Uint8Array(buf));
+						return saveClipboardImage(bytes, item.type);
+					})
+					.then((filePath) => {
+						return ptyWrite(filePath);
+					})
+					.catch(() => {});
+				return;
+			}
+		}
+		// Text paste: let xterm handle it natively
+	}, []);
+
+	// Tauri native file drag-drop
+	useEffect(() => {
+		let cancelled = false;
+		let unlisten: (() => void) | null = null;
+
+		getCurrentWebview()
+			.onDragDropEvent((event) => {
+				if (cancelled) return;
+				if (event.payload.type === "drop" && currentSessionRef.current) {
+					const paths = (event.payload as { type: string; paths: string[] })
+						.paths;
+					if (paths.length > 0) {
+						ptyWrite(paths.join(" ")).catch(() => {});
+					}
+				}
+			})
+			.then((fn) => {
+				if (cancelled) {
+					fn();
+				} else {
+					unlisten = fn;
+				}
+			})
+			.catch(() => {});
+
+		return () => {
+			cancelled = true;
+			if (unlisten) unlisten();
+		};
 	}, []);
 
 	// Setup terminal once — wait for font to load
@@ -109,9 +177,15 @@ export function TerminalPane({
 
 		setTimeout(() => fitAddon.fit(), 50);
 
-		// Let modifier+key shortcuts bubble up to the app
+		// Let modifier+key shortcuts bubble up to the app, except paste (Cmd/Ctrl+V)
 		term.attachCustomKeyEventHandler((e) => {
-			if (e.metaKey || e.ctrlKey) return false;
+			if (e.metaKey || e.ctrlKey) {
+				// Allow Cmd/Ctrl+V (paste) to reach the terminal
+				if (e.key === "v" || e.key === "V") return true;
+				// Allow Cmd/Ctrl+C (copy/interrupt) to reach the terminal
+				if (e.key === "c" || e.key === "C") return true;
+				return false;
+			}
 			return true;
 		});
 
@@ -138,14 +212,31 @@ export function TerminalPane({
 		});
 		resizeObserver.observe(containerRef.current);
 
+		// Paste handler on the container
+		const container = containerRef.current;
+		container.addEventListener("paste", handlePaste as EventListener);
+
 		return () => {
 			resizeObserver.disconnect();
+			container.removeEventListener("paste", handlePaste as EventListener);
 			stopPty();
 			term.dispose();
 			termRef.current = null;
 			fitAddonRef.current = null;
 		};
-	}, [stopPty, fontReady]);
+	}, [stopPty, fontReady, handlePaste]);
+
+	// Refit terminal when webview zoom changes
+	useEffect(() => {
+		const handleResize = () => {
+			fitAddonRef.current?.fit();
+			if (currentSessionRef.current && termRef.current) {
+				ptyResize(termRef.current.cols, termRef.current.rows).catch(() => {});
+			}
+		};
+		window.addEventListener("resize", handleResize);
+		return () => window.removeEventListener("resize", handleResize);
+	}, []);
 
 	// Refit when fullscreen changes — multiple passes to catch layout settling
 	useEffect(() => {
@@ -233,7 +324,7 @@ export function TerminalPane({
 	}, [sessionName]);
 
 	return (
-		<div className="flex h-full flex-col overflow-hidden bg-[#0a0a0a]">
+		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#0a0a0a]">
 			<div className="flex items-center justify-between px-3 py-1 border-b border-border/30 bg-black/50 shrink-0">
 				<div className="flex items-center gap-2">
 					<span className="text-[10px] font-medium text-green-400/60 tracking-wider uppercase">
@@ -265,7 +356,7 @@ export function TerminalPane({
 					)}
 				</div>
 			</div>
-			<div ref={containerRef} className="flex-1" />
+			<div ref={containerRef} className="flex-1 min-h-0" />
 		</div>
 	);
 }

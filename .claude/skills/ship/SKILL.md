@@ -11,21 +11,39 @@ description: |
 
 This skill runs the same checks as CI locally, then commits, pushes, and creates a PR.
 
-The checks to run are **never hardcoded** here — they come from reading the CI config file
-every time. This way, if CI evolves, this skill automatically stays in sync.
+**STRICT RULE: ALL checks MUST pass before proceeding. No exceptions.**
 
-## Step 1: Read CI config and run checks
+## Step 1: Discover and run ALL checks
 
-Find the CI workflow file (`.github/workflows/ci.yml` or similar) in the repo root.
+### 1a. Find check commands from ALL sources
 
-Read it and extract every `run:` command from jobs that perform checks (fmt, clippy, test,
-lint, typecheck, etc.). Ignore CI-only setup steps (actions/checkout, apt-get install,
-actions/setup-node, pnpm install, etc.) — only extract the actual check commands.
+Collect check commands from every source that exists:
 
-For frontend jobs that set `working-directory`, run those commands from that directory.
+1. **CI workflow** (`.github/workflows/ci.yml` or similar): read it and extract every `run:`
+   command from check jobs (fmt, clippy, test, lint, typecheck, build, etc.). Ignore setup
+   steps (actions/checkout, apt-get install, actions/setup-node, pnpm install, etc.).
+   For jobs with `working-directory`, run from that directory.
 
-Run all extracted check commands locally. If a check fails, fix the issue and re-run
-until all checks pass. Do not proceed to step 2 until everything is green.
+2. **package.json** (root and subdirectories like `app/`): read `scripts` and run at minimum:
+   - `lint` (if it exists)
+   - `build` or `typecheck` or `tsc` (if they exist)
+   Any script that performs a check must be run.
+
+3. **Rust workspace**: always run:
+   - `cargo fmt --all -- --check`
+   - `cargo clippy --workspace --all-targets -- -D warnings`
+   - `cargo test --workspace`
+
+### 1b. Run all checks
+
+Run every discovered check command. **Every single one must pass.**
+
+If a check fails:
+1. Fix the issue
+2. Re-run the **failing check** to confirm it passes
+3. Re-run **ALL checks** one final time to confirm nothing is broken
+
+**Do NOT proceed to Step 2 until every check is green.**
 
 ## Step 2: Validate branch name
 

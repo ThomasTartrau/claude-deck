@@ -12,6 +12,15 @@ struct PtySession {
     child: Box<dyn portable_pty::Child + Send + Sync>,
 }
 
+/// Find the last valid UTF-8 boundary in a byte slice.
+/// Returns the number of bytes that form valid UTF-8 from the start.
+fn valid_utf8_len(buf: &[u8]) -> usize {
+    match std::str::from_utf8(buf) {
+        Ok(_) => buf.len(),
+        Err(e) => e.valid_up_to(),
+    }
+}
+
 static PTY_SESSION: std::sync::LazyLock<Mutex<Option<PtySession>>> =
     std::sync::LazyLock::new(|| Mutex::new(None));
 
@@ -93,6 +102,8 @@ pub fn open(app_handle: AppHandle, session_name: &str, cols: u16, rows: u16) -> 
 
     thread::spawn(move || {
         let mut buf = [0u8; 4096];
+        // Buffer for incomplete UTF-8 sequences that span chunk boundaries
+        let mut pending: Vec<u8> = Vec::new();
         loop {
             if GENERATION.load(Ordering::SeqCst) != gen {
                 break;
@@ -104,8 +115,23 @@ pub fn open(app_handle: AppHandle, session_name: &str, cols: u16, rows: u16) -> 
                     if GENERATION.load(Ordering::SeqCst) != gen {
                         break;
                     }
-                    let data = String::from_utf8_lossy(&buf[..n]).to_string();
-                    let _ = app_handle.emit("pty-output", data);
+                    pending.extend_from_slice(&buf[..n]);
+                    let valid = valid_utf8_len(&pending);
+                    if valid > 0 {
+                        // Safe: we just verified these bytes are valid UTF-8
+                        let data = String::from_utf8(pending[..valid].to_vec()).unwrap_or_default();
+                        pending = pending[valid..].to_vec();
+                        let _ = app_handle.emit("pty-output", data);
+                    }
+                    // If valid == 0 and pending is non-empty, we have an incomplete
+                    // multi-byte sequence — wait for the next read to complete it.
+                    // Safety valve: if pending grows too large without valid UTF-8,
+                    // flush it lossy to avoid unbounded memory growth.
+                    if pending.len() > 16 {
+                        let data = String::from_utf8_lossy(&pending).to_string();
+                        pending.clear();
+                        let _ = app_handle.emit("pty-output", data);
+                    }
                 }
                 Ok(Err(_)) => break,
                 Err(_) => break, // panic in read — just stop
