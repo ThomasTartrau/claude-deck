@@ -133,10 +133,10 @@ function App() {
 
 	// Sessions sorted by visual display order (status groups) for keyboard navigation.
 	// Excludes sessions in collapsed groups so arrow keys skip them.
-	const STATUS_ORDER: Session["status"][] = ["Running", "Waiting", "Idle", "Dead"];
 	const visualOrderSessions = useMemo(() => {
+		const order: Session["status"][] = ["Running", "Waiting", "Idle", "Dead"];
 		const result: Session[] = [];
-		for (const status of STATUS_ORDER) {
+		for (const status of order) {
 			if (collapsedGroups.has(status)) continue;
 			for (const s of filteredSessions) {
 				if (s.status === status) result.push(s);
