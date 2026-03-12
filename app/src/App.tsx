@@ -131,6 +131,20 @@ function App() {
 		[sessions, searchText, activeTagFilters, activeWorkspace],
 	);
 
+	// Sessions sorted by visual display order (status groups) for keyboard navigation.
+	// Excludes sessions in collapsed groups so arrow keys skip them.
+	const visualOrderSessions = useMemo(() => {
+		const order: Session["status"][] = ["Running", "Waiting", "Idle", "Dead"];
+		const result: Session[] = [];
+		for (const status of order) {
+			if (collapsedGroups.has(status)) continue;
+			for (const s of filteredSessions) {
+				if (s.status === status) result.push(s);
+			}
+		}
+		return result;
+	}, [filteredSessions, collapsedGroups]);
+
 	const hasFilters = searchText !== "" || activeTagFilters.length > 0;
 
 	// Keep selected session in sync with refreshed data, clear if gone
@@ -270,7 +284,7 @@ function App() {
 		anyDialogOpen,
 		selectedSession,
 		terminalFullscreen,
-		filteredSessions,
+		filteredSessions: visualOrderSessions,
 		keybindings,
 		setTerminalFullscreen,
 		setTerminalSession,

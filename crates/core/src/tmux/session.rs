@@ -143,6 +143,20 @@ pub fn pane_looks_idle(session_name: &str) -> bool {
     };
 
     let text = output.to_lowercase();
+
+    // If Claude is actively processing, the pane is NOT idle — even if the › prompt is visible.
+    // These markers indicate Claude is thinking, streaming, or running tools.
+    const ACTIVE_MARKERS: &[&str] = &[
+        "hyperspacing",
+        "thinking",
+        "running",
+        "streaming",
+        "compressing",
+    ];
+    if ACTIVE_MARKERS.iter().any(|m| text.contains(m)) {
+        return false;
+    }
+
     // "interrupted" appears when user ctrl+c's a running tool
     // "what should claude do" is the follow-up prompt after interruption
     // ">" at the start of a line is the input prompt
