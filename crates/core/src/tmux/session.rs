@@ -2,7 +2,8 @@ use anyhow::Result;
 
 use crate::claude::hooks;
 use crate::model::session::{Session, SessionStatus};
-use crate::tmux::command::{capture_pane, run_tmux_allow_failure};
+use crate::status;
+use crate::tmux::command::run_tmux_allow_failure;
 use crate::tmux::parser;
 
 pub const SESSION_PREFIX: &str = "cc-";
@@ -29,8 +30,7 @@ pub fn list_sessions() -> Result<Vec<Session>> {
             Err(_) => continue,
         };
 
-        let pane_is_claude = is_pane_running_claude(info.pane_pid);
-        let is_claude = is_claude_session(&info.name, None) || pane_is_claude;
+        let is_claude = is_claude_session(&info.name, None);
 
         if !is_claude {
             continue;
@@ -45,17 +45,31 @@ pub fn list_sessions() -> Result<Vec<Session>> {
                 .or_insert_with(|| resolve_git_info(None)),
         };
 
-        let status = if !pane_is_claude {
-            SessionStatus::Dead
-        } else {
-            detect_pane_status(&info.name, info.pane_pid)
-        };
+        // Layer 1: tmux is the source of truth for alive/dead
+        let pane_dead = status::query_pane_dead(&info.name);
+
+        // Layer 2: hooks with watchdog for application status
+        let hook_entry = hooks::read_status_entry(&info.name);
+        let session_status = status::resolve_status(pane_dead, hook_entry.as_ref());
+
+        // If watchdog resolved a stale status to Idle, update the file
+        // so the next tick doesn't re-evaluate
+        if !pane_dead && session_status == SessionStatus::Idle {
+            if let Some(ref entry) = hook_entry {
+                if entry.status == SessionStatus::Running || entry.status == SessionStatus::Waiting
+                {
+                    let idle_entry = status::StatusEntry::new(SessionStatus::Idle);
+                    let status_path = hooks::status_file_path(&info.name);
+                    status::write_status_file(&status_path, &idle_entry);
+                }
+            }
+        }
 
         sessions.push(Session {
             name: info.name,
             branch: git_info.branch.clone(),
             created_at: info.created,
-            status,
+            status: session_status,
             pane_pid: info.pane_pid,
             pane_path: info.pane_current_path,
             git_dirty_count: git_info.dirty_count,
@@ -79,93 +93,6 @@ pub fn is_claude_session(session_name: &str, pane_command: Option<&str>) -> bool
         return cmd == "claude";
     }
     false
-}
-
-/// Check if the pane's process tree contains "claude" by looking at `ps`
-pub fn is_pane_running_claude(pane_pid: Option<u32>) -> bool {
-    let pid = match pane_pid {
-        Some(p) => p,
-        None => return false,
-    };
-
-    std::process::Command::new("ps")
-        .args(["-o", "command=", "-p", &pid.to_string()])
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .map(|o| {
-            let cmd = String::from_utf8_lossy(&o.stdout);
-            cmd.contains("claude")
-        })
-        .unwrap_or(false)
-}
-
-/// Detect Claude session status via hook state files with pane-based fallback.
-///
-/// Claude Code hooks write status to the cache dir (~/Library/Caches/claude-deck/status/).
-/// However, tool interruptions (ctrl+c) don't fire any hook, leaving the file
-/// stuck on "running". As a fallback, when the status file says "running" but
-/// is stale (>10s old), we check the tmux pane for interruption markers.
-pub fn detect_pane_status(session_name: &str, _pane_pid: Option<u32>) -> SessionStatus {
-    let status = hooks::read_session_status(session_name).unwrap_or(SessionStatus::Idle);
-
-    if status != SessionStatus::Running {
-        return status;
-    }
-
-    // Check if the status file is stale — if recently updated, trust it
-    let status_path = hooks::status_file_path(session_name);
-    let is_stale = std::fs::metadata(&status_path)
-        .ok()
-        .and_then(|m| m.modified().ok())
-        .map(|t| t.elapsed().unwrap_or_default().as_secs() > 10)
-        .unwrap_or(false);
-
-    if !is_stale {
-        return SessionStatus::Running;
-    }
-
-    // Stale "running" — check pane content for interruption/idle markers
-    if pane_looks_idle(session_name) {
-        // Update the status file so we don't re-check every tick
-        let _ = std::fs::write(&status_path, "idle");
-        SessionStatus::Idle
-    } else {
-        SessionStatus::Running
-    }
-}
-
-/// Check the last lines of a tmux pane for signs that Claude is idle/interrupted.
-pub fn pane_looks_idle(session_name: &str) -> bool {
-    let output = match capture_pane(session_name, 5) {
-        Some(o) => o,
-        None => return false,
-    };
-
-    let text = output.to_lowercase();
-
-    // If Claude is actively processing, the pane is NOT idle — even if the › prompt is visible.
-    // These markers indicate Claude is thinking, streaming, or running tools.
-    const ACTIVE_MARKERS: &[&str] = &[
-        "hyperspacing",
-        "thinking",
-        "running",
-        "streaming",
-        "compressing",
-    ];
-    if ACTIVE_MARKERS.iter().any(|m| text.contains(m)) {
-        return false;
-    }
-
-    // "interrupted" appears when user ctrl+c's a running tool
-    // "what should claude do" is the follow-up prompt after interruption
-    // ">" at the start of a line is the input prompt
-    text.contains("interrupted")
-        || text.contains("what should claude do")
-        || output.lines().rev().any(|line| {
-            let trimmed = line.trim();
-            trimmed.starts_with('\u{276f}') || trimmed.starts_with('>')
-        })
 }
 
 pub struct GitInfo {
