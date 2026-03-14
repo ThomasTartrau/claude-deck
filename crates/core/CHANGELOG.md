@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0](https://github.com/ThomasTartrau/claude-deck/compare/core-v0.4.1...core-v0.5.0) - 2026-03-14
+
+### Other
+
+- replace fragile pane-text status detection with tmux pane_dead + watchdog
+
 ## [0.4.1](https://github.com/ThomasTartrau/claude-deck/compare/core-v0.4.0...core-v0.4.1) - 2026-03-12
 
 ### Fixed
