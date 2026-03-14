@@ -4,6 +4,7 @@ pub mod config;
 pub mod cost;
 pub mod duration;
 pub mod model;
+pub mod status;
 pub mod tmux;
 
 /// Ensure common binary paths are in PATH.

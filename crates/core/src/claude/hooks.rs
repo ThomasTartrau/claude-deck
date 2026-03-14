@@ -1,8 +1,11 @@
 use std::fs;
 use std::path::PathBuf;
 
-use crate::model::SessionStatus;
+use crate::status::StatusEntry;
 
+/// Hook script that writes "status:unix_timestamp" to the cache dir.
+/// The timestamp enables watchdog-based stale detection instead of
+/// relying on filesystem mtime (which has race conditions).
 const HOOK_SCRIPT: &str = r#"#!/bin/sh
 # Use user-owned cache dir (not /tmp) to prevent symlink attacks
 if [ "$(uname)" = "Darwin" ]; then
@@ -14,8 +17,9 @@ LOG="${DIR}/../debug.log"
 mkdir -p "$DIR"
 S=$(tmux display-message -t "$TMUX_PANE" -p '#{session_name}' 2>/dev/null)
 [ -z "$S" ] && exit 0
+T=$(date +%s)
 printf '[%s] session=%s status=%s\n' "$(date +%H:%M:%S)" "$S" "$1" >> "$LOG"
-printf '%s' "$1" > "$DIR/$S"
+printf '%s:%s' "$1" "$T" > "$DIR/$S"
 "#;
 
 const HOOK_MARKER: &str = "claude-deck-hook.sh";
@@ -39,15 +43,11 @@ fn hook_script_path() -> PathBuf {
         .join("claude-deck-hook.sh")
 }
 
-/// Read session status from the hook state file.
+/// Read session status entry from the hook state file.
 /// Returns None if no state file exists (hooks not yet active for this session).
-pub fn read_session_status(session_name: &str) -> Option<SessionStatus> {
+pub fn read_status_entry(session_name: &str) -> Option<StatusEntry> {
     let path = status_dir().join(session_name);
-    fs::read_to_string(path).ok().map(|s| match s.trim() {
-        "running" => SessionStatus::Running,
-        "waiting" => SessionStatus::Waiting,
-        _ => SessionStatus::Idle,
-    })
+    crate::status::read_status_file(&path)
 }
 
 /// Install the hook script and configure Claude Code settings.json.
